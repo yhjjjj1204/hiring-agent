@@ -30,10 +30,12 @@ def insert_candidate_ranking(
     candidate_ref: str,
     thread_id: str | None,
     job_id: str | None = None,
-    overall_score: float,
-    dimensions: list[dict[str, Any]],
-    summary: str,
-    scorecard: dict[str, Any],
+    candidate_info: dict[str, Any] | None = None,
+    status: str = "evaluating",
+    overall_score: float = 0.0,
+    dimensions: list[dict[str, Any]] | None = None,
+    summary: str = "",
+    scorecard: dict[str, Any] | None = None,
     db: Database[Any] | None = None,
 ) -> None:
     d = db or get_database()
@@ -41,13 +43,43 @@ def insert_candidate_ranking(
         {
             "ranking_id": ranking_id,
             "candidate_ref": candidate_ref,
+            "candidate_info": candidate_info or {},
             "thread_id": thread_id,
             "job_id": job_id,
+            "status": status,
             "overall_score": overall_score,
-            "dimensions": dimensions,
+            "dimensions": dimensions or [],
             "summary": summary,
             "scorecard_snapshot": scorecard,
+            "submitted_at": _utcnow(),
+            "evaluated_at": None,
             "created_at": _utcnow(),
+        },
+    )
+
+
+def update_candidate_ranking_result(
+    ranking_id: str,
+    *,
+    status: str = "ready",
+    overall_score: float,
+    dimensions: list[dict[str, Any]],
+    summary: str,
+    scorecard: dict[str, Any],
+    db: Database[Any] | None = None,
+) -> None:
+    d = db or get_database()
+    d["candidate_rankings"].update_one(
+        {"ranking_id": ranking_id},
+        {
+            "$set": {
+                "status": status,
+                "overall_score": overall_score,
+                "dimensions": dimensions,
+                "summary": summary,
+                "scorecard_snapshot": scorecard,
+                "evaluated_at": _utcnow(),
+            }
         },
     )
 
@@ -64,9 +96,10 @@ def list_rankings(
     if job_id:
         query["job_id"] = job_id
     
-    sort_field = sort_by if sort_by in ("overall_score", "created_at") else "overall_score"
-    direction = DESCENDING if sort_field == "overall_score" else DESCENDING
-    cur = col.find(query, sort=[(sort_field, direction)]).limit(min(max(limit, 1), 200))
+    sort_field = sort_by if sort_by in ("overall_score", "submitted_at", "created_at") else "overall_score"
+    # If sorting by score, we probably want descending, but submitted_at might be ascending or descending.
+    # We'll stick to DESCENDING for both for now (newest/highest first).
+    cur = col.find(query, sort=[(sort_field, DESCENDING)]).limit(min(max(limit, 1), 200))
     out = []
     for doc in cur:
         doc.pop("_id", None)

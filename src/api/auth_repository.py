@@ -6,6 +6,9 @@ def get_user(username: str) -> Optional[UserInDB]:
     db = get_database()
     user_data = db.users.find_one({"username": username})
     if user_data:
+        # Pydantic models don't like MongoDB's _id ObjectId by default
+        if "_id" in user_data:
+            user_data.pop("_id")
         return UserInDB(**user_data)
     return None
 

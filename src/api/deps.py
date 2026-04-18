@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Security, Depends, Header
+from fastapi import HTTPException, Security, Depends, Header, Query, Request
 from fastapi.security import APIKeyHeader
 
 import config
@@ -21,21 +21,24 @@ def verify_hiring_agent_api_key(x_api_key: str | None = Security(_api_key_header
     if not got or got != expected:
         raise HTTPException(status_code=401, detail="Missing or invalid X-API-Key")
 
-def get_current_user(authorization: str | None = Header(None)) -> User:
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
+def get_current_user(request: Request) -> User:
+    actual_token = None
     
-    # Expecting "Bearer <username>" for our simple mock
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-             raise HTTPException(status_code=401, detail="Invalid authentication scheme")
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+    # 1. Try Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        actual_token = auth_header[7:].strip()
+    
+    # 2. Try query parameter (useful for direct file downloads)
+    if not actual_token:
+        actual_token = request.query_params.get("token")
 
-    user_db = get_user(token)
+    if not actual_token:
+        raise HTTPException(status_code=401, detail="Authentication token missing")
+
+    user_db = get_user(actual_token)
     if not user_db:
-        raise HTTPException(status_code=401, detail="User not found or invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token or user not found")
     
     return User(username=user_db.username, role=user_db.role)
 

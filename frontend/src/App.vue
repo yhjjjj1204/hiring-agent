@@ -61,9 +61,9 @@ async function runAnalysis() {
       return
     }
     
-    status.value = "Done"
+    status.value = "Application submitted successfully! Our recruiters will review it soon."
     statusClass.value = "ok"
-    analysisData.value = data
+    analysisData.value = null // Clear any previous results
   } catch (e) {
     status.value = "Request failed: " + (e && e.message ? e.message : String(e))
     statusClass.value = "err"
@@ -148,8 +148,6 @@ onMounted(() => {
         </div>
 
         <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
-
-        <AnalysisResult :data="analysisData" />
       </div>
     </div>
 

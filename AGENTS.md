@@ -24,12 +24,17 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 - **Mechanism**: Structured LLM evaluation.
 - **Function**: Performs a "Blind Match" by comparing the `HRJobSpec`, structured resume, and background analysis. It outputs a `Scorecard` with detailed scores and rationales.
 
-### 5. Authentication & Account System (`src/api/`)
+### 5. Async Evaluation Pipeline (`src/api/routes_analyze.py`)
+- **Role**: Non-blocking candidate experience.
+- **Mechanism**: FastAPI BackgroundTasks + permanent file storage.
+- **Function**: Immediately accepts candidate submissions and performs full LLM analysis in the background. Recruiter dashboard polls for real-time status updates (`evaluating` vs `ready`). Supports manual re-evaluation by re-processing stored resume files.
+
+### 6. Authentication & Account System (`src/api/`)
 - **Role**: Access Control & Multi-role Support.
 - **Mechanism**: Token-based authentication with role-based access control (RBAC).
 - **Function**: Manages user registration, login, and sessions. Differentiates between `candidate` (can upload resumes) and `recruiter` (can access the full ranking dashboard).
 
-### 6. Jobs Management (`src/api/routes_jobs.py`)
+### 7. Jobs Management (`src/api/routes_jobs.py`)
 - **Role**: Job lifecycle management.
 - **Function**: Allows recruiters to create and edit job postings. Candidates can view available jobs and apply for specific roles, linking their analysis results to the selected job.
 
@@ -53,6 +58,10 @@ The frontend is a modular **Vue 3** application built with **Vite**.
     - `JobRequirementInput.vue`: Input management for Job Descriptions and background lookup overrides.
     - `AnalysisResult.vue`: Visualization of scores, confidence, and summaries.
     - `CandidateSnapshot.vue`: Structured resume data visualization.
+    - `Auth.vue`: User registration and login.
+    - `RecruiterDashboard.vue`: Multi-role dashboard with candidate tracking and evaluation status.
+    - `JobManager.vue`: Job CRUD for recruiters.
+    - `JobList.vue`: Job selection for candidates.
 - **Serving Logic**: The FastAPI backend (`src/api/main.py`) serves the production build from `frontend/dist/` if present, falling back to `frontend/src/` for development mode.
 
 ## Project Structure
@@ -66,6 +75,7 @@ The frontend is a modular **Vue 3** application built with **Vite**.
   - `config.py`: Centralized environment configuration.
   - `version.py`: Version metadata.
 - `frontend/`: Vue 3 application source code.
+- `uploads/`: Permanent storage for candidate resumes.
 
 ## LLM Interaction & Engineering Guidelines
 

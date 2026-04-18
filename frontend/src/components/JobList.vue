@@ -23,39 +23,42 @@ onMounted(fetchJobs)
 
 <template>
   <div class="job-list-candidate">
-    <h3>Available Jobs</h3>
-    <div v-if="jobs.length" class="jobs">
-      <div v-for="j in jobs" :key="j.id" class="job-card" @click="emit('select-job', j)">
-        <div class="card-header">
-          <h4>{{ j.title }}</h4>
-          <span v-if="j.submitted" class="submitted-tag">Submitted</span>
-        </div>
-        <p class="date">Posted: {{ new Date(j.created_at).toLocaleDateString() }}</p>
+    <div class="page-header-wrap">
+      <div class="page-header-titles">
+        <h2>Available Positions</h2>
+        <p class="page-header-subtitle">Discover roles that match your expertise</p>
       </div>
     </div>
-    <p v-else-if="!status">No open positions at the moment.</p>
-    <p v-if="status" class="err">{{ status }}</p>
+
+    <div v-if="jobs.length" class="job-grid">
+      <div v-for="j in jobs" :key="j.id" class="job-card glass-card" @click="emit('select-job', j)">
+        <div class="job-card-header">
+          <div class="job-card-title-group">
+            <h4>{{ j.title }}</h4>
+            <span class="job-card-date">Posted {{ new Date(j.created_at).toLocaleDateString() }}</span>
+          </div>
+          <div v-if="j.submitted" class="status-badge-outline ok">Applied</div>
+        </div>
+        <div class="job-card-preview">
+           {{ j.description.split('\n')[0].substring(0, 120) }}...
+        </div>
+        <div class="job-card-footer">
+          <span class="job-card-type">Full-time</span>
+          <span class="job-card-action">Apply Now →</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="!status" class="empty-state glass-card">
+      No open positions at the moment.
+    </div>
+    
+    <p v-if="status" class="err-msg">{{ status }}</p>
   </div>
 </template>
 
 <style scoped>
-.jobs { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
-.job-card {
-  padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 12px; cursor: pointer; transition: all 0.2s;
-  display: flex; flex-direction: column; gap: 0.5rem;
-}
-.job-card:hover { transform: translateY(-3px); border-color: var(--ok); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+.job-list-candidate { margin-top: 1rem; animation: fadeIn 0.4s ease-out; }
 
-.card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
-.card-header h4 { margin: 0; font-size: 1.1rem; }
-
-.submitted-tag { 
-  background: #10b98122; color: #10b981; border: 1px solid #10b98144;
-  padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: bold;
-  text-transform: uppercase;
-}
-
-.date { font-size: 0.8rem; color: var(--muted); margin: 0; }
-.err { color: var(--err); }
+.empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
 </style>

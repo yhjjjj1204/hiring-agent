@@ -38,6 +38,16 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 - **Role**: Job lifecycle management.
 - **Function**: Allows recruiters to create and edit job postings. Candidates can view available jobs and apply for specific roles, linking their analysis results to the selected job.
 
+## Frontend Design & UX Strategy
+
+### Design Philosophy (Steady & Professional)
+1.  **High Information Density**: Prioritize structured data presentation and efficient use of screen real estate. Use a full-width container (max-width: 1400px) and logical grid grouping over excessive blank space.
+2.  **Structural Hierarchy & Sharpness**: Avoid frivolous effects like glassmorphism or overly rounded corners. Use a stable, sharp-cornered design (4px border-radius) with solid borders and clear separation of concerns.
+3.  **Integrated Header System**: Maintain a full-width, darkened title bar that anchors the application. Ensure vertical alignment between the header content and the main container.
+4.  **Slate-Based Business Palette**: Use a grounded high-contrast theme (Deep Navy background `#0f172a`, darker Header `#111827`, Slate panels `#1e293b`). Vibrancy is reserved for active states: Electric Blue (`#3b82f6`) for actions and Emerald Green (`#10b981`) for success/match scores.
+5.  **Unified Data Components**: Re-use visual patterns for similar data across all roles. Chronological data (Education/Experience) must use a **Unified Timeline** with accent dots aligned to the first line of text.
+6.  **Responsive Stability**: Ensure components naturally occupy available width while maintaining strict alignment. Avoid "visual breakage" by carefully calculating margins and padding to preserve the established grid.
+
 ## Support Modules
 
 ### Fairness & Privacy (`src/fairness/`)
@@ -52,16 +62,13 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 The frontend is a modular **Vue 3** application built with **Vite**.
 
 - **Structure**:
-  - `frontend/src/App.vue`: Main orchestration component.
+  - `frontend/src/App.vue`: Main orchestration and layout component.
   - `frontend/src/components/`: Modular UI components:
-    - `ResumeUpload.vue`: Drag-and-drop file upload with validation.
-    - `JobRequirementInput.vue`: Input management for Job Descriptions and background lookup overrides.
-    - `AnalysisResult.vue`: Visualization of scores, confidence, and summaries.
-    - `CandidateSnapshot.vue`: Structured resume data visualization.
-    - `Auth.vue`: User registration and login.
-    - `RecruiterDashboard.vue`: Multi-role dashboard with candidate tracking and evaluation status.
-    - `JobManager.vue`: Job CRUD for recruiters.
-    - `JobList.vue`: Job selection for candidates.
+    - `ResumeUpload.vue`: Professional file upload with validation.
+    - `CandidateSnapshot.vue`: Unified timeline for structured resume data.
+    - `RecruiterDashboard.vue`: Multi-page dashboard with candidate tracking and evaluation status.
+    - `JobManager.vue`: Role-based job management with unified grid layout.
+    - `JobList.vue`: Job board for candidates with submission tracking.
 - **Serving Logic**: The FastAPI backend (`src/api/main.py`) serves the production build from `frontend/dist/` if present, falling back to `frontend/src/` for development mode.
 
 ## Project Structure
@@ -80,6 +87,7 @@ The frontend is a modular **Vue 3** application built with **Vite**.
 ## LLM Interaction & Engineering Guidelines
 
 1. **Commit Protocol**: When a major functionality or feature is added, the LLM must prompt the user to commit the changes to version control.
-2. **Standard Language**: All code comments and documentation MUST be written in **English**, even if the user provides prompts in other languages (e.g., Chinese).
-3. **Architectural Integrity**: Maintain clean, organized code. Before implementing changes, consider the entire system architecture. Avoid "patch-like" fixes; instead, act as a lead **Architectural Engineer** to ensure changes are seamless, idiomatic, and maintainable.
-4. **Documentation Maintenance**: When the file structure is changed or updated, or new functionality is added, the LLM must check and update `AGENTS.md` to ensure it remains the accurate source of truth.
+2. **Design Integrity**: Before modifying the frontend, the LLM MUST carefully analyze the current design in the source (`style.css` and existing components). Do NOT break the established visual hierarchy. Calculate paddings, margins, and grid gaps precisely to avoid visual breakage.
+3. **Standard Language**: All code comments and documentation MUST be written in **English**, even if the user provides prompts in other languages (e.g., Chinese).
+4. **Architectural Integrity**: Maintain clean, organized code. Before implementing changes, consider the entire system architecture. Avoid "patch-like" fixes; instead, act as a lead **Architectural Engineer** to ensure changes are seamless, idiomatic, and maintainable.
+5. **Documentation Maintenance**: When the file structure is changed or updated, or new functionality is added, the LLM must check and update `AGENTS.md` to ensure it remains the accurate source of truth.

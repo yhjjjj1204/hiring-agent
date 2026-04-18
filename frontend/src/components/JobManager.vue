@@ -9,8 +9,11 @@ const newJob = ref({ title: '', description: '' })
 const status = ref('')
 
 async function fetchJobs() {
+  const token = localStorage.getItem('token')
   try {
-    const res = await fetch('/jobs/')
+    const res = await fetch('/jobs/', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
     if (res.ok) jobs.value = await res.json()
   } catch (e) {
     status.value = 'Failed to fetch jobs'
@@ -46,52 +49,65 @@ onMounted(fetchJobs)
 
 <template>
   <div class="job-manager">
-    <div class="header">
-      <h3>Jobs Management</h3>
-      <button @click="showCreate = !showCreate">{{ showCreate ? 'Cancel' : 'Create Job' }}</button>
+    <div class="page-header-wrap">
+      <div class="page-header-titles">
+        <h2>Active Positions</h2>
+        <p class="page-header-subtitle">Manage your open roles and review candidates</p>
+      </div>
+      <button :class="['create-btn', showCreate ? 'secondary' : '']" @click="showCreate = !showCreate">
+        <span v-if="!showCreate">+ Add Position</span>
+        <span v-else>Close</span>
+      </button>
     </div>
 
-    <div v-if="showCreate" class="create-form">
-      <div class="form-group">
-        <label>Job Title</label>
-        <input v-model="newJob.title" type="text" placeholder="e.g. Senior AI Engineer" />
-      </div>
-      <div class="form-group">
-        <label>Description / Requirements</label>
-        <textarea v-model="newJob.description" rows="5" placeholder="Minimum 15 characters..."></textarea>
-      </div>
-      <button @click="createJob">Save Job</button>
-      <p v-if="status" class="err">{{ status }}</p>
-    </div>
-
-    <div class="job-list">
-      <div v-for="j in jobs" :key="j.id" class="job-item" @click="emit('select-job', j)">
-        <div class="job-info">
-          <strong>{{ j.title }}</strong>
-          <span class="date">{{ new Date(j.created_at).toLocaleDateString() }}</span>
+    <div v-if="showCreate" class="create-form glass-card">
+      <h3>Post a New Position</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Job Title</label>
+          <input v-model="newJob.title" type="text" placeholder="e.g. Senior AI Engineer" />
         </div>
-        <button class="mini">View Candidates</button>
+        <div class="form-group">
+          <label>Requirements & Description (Markdown)</label>
+          <textarea v-model="newJob.description" rows="10" placeholder="Outline the role, expectations, and desired skills..."></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button @click="createJob">Publish Role</button>
+        <p v-if="status" class="err-msg">{{ status }}</p>
+      </div>
+    </div>
+
+    <div class="job-grid">
+      <div v-for="j in jobs" :key="j.id" class="job-card glass-card" @click="emit('select-job', j)">
+        <div class="job-card-header">
+          <div class="job-card-title-group">
+            <h4>{{ j.title }}</h4>
+            <span class="job-card-date">Posted {{ new Date(j.created_at).toLocaleDateString() }}</span>
+          </div>
+          <div class="status-badge-outline ok">Active</div>
+        </div>
+        <div class="job-card-preview">
+           {{ j.description.split('\n')[0].substring(0, 120) }}...
+        </div>
+        <div class="job-card-footer">
+          <span class="job-card-type">Corporate</span>
+          <span class="job-card-action">Manage →</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.job-manager { margin-bottom: 2rem; }
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.create-form { background: var(--bg-card); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1rem; }
-.form-group { margin-bottom: 1rem; }
-label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; }
-input, textarea { width: 100%; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; }
-.job-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.job-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0.75rem 1rem; background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 8px; cursor: pointer; transition: border-color 0.2s;
-}
-.job-item:hover { border-color: var(--ok); }
-.job-info { display: flex; flex-direction: column; }
-.date { font-size: 0.8rem; color: var(--muted); }
-.mini { padding: 0.2rem 0.6rem; font-size: 0.75rem; }
-.err { color: var(--err); font-size: 0.8rem; margin-top: 0.5rem; }
+.job-manager { margin-bottom: 2rem; animation: fadeIn 0.4s ease-out; }
+
+.create-btn { min-width: 130px; }
+
+.create-form { padding: 2rem; margin-bottom: 2.5rem; border-color: var(--glass-border); }
+.create-form h3 { margin-bottom: 1.5rem; font-size: 1.25rem; }
+.form-grid { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.form-actions { margin-top: 2rem; display: flex; align-items: center; gap: 1.5rem; }
+.err-msg { color: var(--err); font-size: 0.9rem; font-weight: 600; }
 </style>

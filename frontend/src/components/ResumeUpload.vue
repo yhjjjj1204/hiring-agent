@@ -4,98 +4,108 @@ import { ref } from 'vue'
 const props = defineProps(['modelValue'])
 const emit = defineEmits(['update:modelValue'])
 
-const isDragOver = ref(false)
-const fileInput = ref(null)
-
-const ACCEPT = new Set([
-  "application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif",
-  "image/bmp", "image/tiff", "image/x-ms-bmp",
-]);
-const ACCEPT_EXT = /\.(pdf|png|jpe?g|webp|gif|bmp|tiff?)$/i;
-
-function humanSize(n) {
-  if (n < 1024) return n + " B";
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
-  return (n / (1024 * 1024)).toFixed(1) + " MB";
-}
-
-function onFileChange(e) {
-  const f = e.target.files && e.target.files[0];
-  if (f) emit('update:modelValue', f);
-}
+const isOver = ref(false)
+const fileName = ref('')
 
 function onDrop(e) {
-  isDragOver.value = false;
-  const files = e.dataTransfer && e.dataTransfer.files;
-  if (!files || !files.length) return;
-  const f = files[0];
-  const okType = ACCEPT.has(f.type) || ACCEPT_EXT.test(f.name || "");
-  if (okType) {
-    emit('update:modelValue', f);
+  isOver.value = false
+  const file = e.dataTransfer.files[0]
+  if (file) {
+    fileName.value = file.name
+    emit('update:modelValue', file)
   }
 }
 
-function pickFile() {
-  fileInput.value.click();
+function onFileChange(e) {
+  const file = e.target.files[0]
+  if (file) {
+    fileName.value = file.name
+    emit('update:modelValue', file)
+  }
 }
 </script>
 
 <template>
-  <div class="row">
-    <label>Resume file</label>
-    <div 
-      class="dropzone" 
-      :class="{ dragover: isDragOver }"
-      role="button" 
-      tabindex="0" 
-      aria-label="Choose file or drop resume here"
-      @click="pickFile"
-      @keydown.enter.prevent="pickFile"
-      @keydown.space.prevent="pickFile"
-      @dragenter.prevent="isDragOver = true"
-      @dragover.prevent="isDragOver = true"
-      @dragleave.prevent="isDragOver = false"
-      @drop.prevent="onDrop"
-    >
-      <input 
-        type="file" 
-        ref="fileInput"
-        id="file" 
-        accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.tiff,.tif,application/pdf" 
-        @change="onFileChange"
-      />
-      <p class="dz-title">Click to choose a file, or drag and drop</p>
-      <p class="dz-sub">PDF and common image formats</p>
-      <p class="dz-file" :class="{ empty: !modelValue }">
-        {{ modelValue ? `${modelValue.name} · ${humanSize(modelValue.size)}` : 'No file selected' }}
-      </p>
+  <div 
+    class="upload-box"
+    :class="{ 'is-over': isOver }"
+    @dragover.prevent="isOver = true"
+    @dragleave.prevent="isOver = false"
+    @drop.prevent="onDrop"
+    @click="$refs.fileInput.click()"
+  >
+    <input 
+      type="file" 
+      ref="fileInput" 
+      style="display: none" 
+      accept=".pdf,.png,.jpg,.jpeg,.webp"
+      @change="onFileChange" 
+    />
+    
+    <div class="upload-content">
+      <div class="upload-icon">📄</div>
+      <div v-if="!fileName" class="upload-text">
+        <p class="main-text">Click or drop resume here</p>
+        <p class="sub-text">PDF, PNG, JPG or WebP (max 10MB)</p>
+      </div>
+      <div v-else class="file-info">
+        <span class="file-name">{{ fileName }}</span>
+        <span class="change-link">Change file</span>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.row { margin-bottom: 1rem; }
-.dropzone {
-  border: 2px dashed var(--border);
-  border-radius: 12px;
-  padding: 1.25rem 1rem;
+.upload-box {
+  border: 2px dashed var(--glass-border);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 16px;
+  padding: 3rem 2rem;
   text-align: center;
-  background: #111923;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
-.dropzone:hover, .dropzone.dragover {
+
+.upload-box:hover, .upload-box.is-over {
   border-color: var(--accent);
-  background: #141d2a;
+  background: var(--accent-glow);
 }
-.dropzone .dz-title { font-size: 0.95rem; margin: 0 0 0.35rem; }
-.dropzone .dz-sub { font-size: 0.8rem; color: var(--muted); margin: 0; }
-.dropzone .dz-file {
-  margin: 0.75rem 0 0;
-  font-size: 0.9rem;
-  color: var(--ok);
-  word-break: break-all;
+
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
-.dropzone .dz-file.empty { color: var(--muted); }
-#file { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+
+.upload-icon {
+  font-size: 3rem;
+  opacity: 0.8;
+  transition: transform 0.3s ease;
+}
+.upload-box:hover .upload-icon { transform: scale(1.1); }
+
+.main-text { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.sub-text { font-size: 0.85rem; color: var(--muted); }
+
+.file-info { display: flex; flex-direction: column; gap: 0.5rem; }
+.file-name { font-weight: 700; color: var(--ok); font-size: 1.1rem; }
+.change-link { font-size: 0.8rem; color: var(--accent); font-weight: 600; text-transform: uppercase; }
+
+.is-over::after {
+  content: 'Drop to upload';
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.25rem;
+  opacity: 0.9;
+}
 </style>

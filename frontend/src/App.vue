@@ -46,7 +46,7 @@ async function runAnalysis() {
   if (requirements.scholarUrl.trim()) fd.append("google_scholar_url", requirements.scholarUrl.trim())
   if (requirements.nameOverride.trim()) fd.append("candidate_name_override", requirements.nameOverride.trim())
 
-  isWorking.value = true
+  isWorking = true
   statusClass.value = ""
   status.value = "Uploading and starting evaluation…"
   errorOutput.value = ""
@@ -74,7 +74,6 @@ async function runAnalysis() {
     status.value = "Application submitted! AI agents are summarizing your data..."
     statusClass.value = "ok"
     
-    // Start polling
     startPollingCandidateStatus()
   } catch (e) {
     status.value = "Request failed: " + (e && e.message ? e.message : String(e))
@@ -97,7 +96,6 @@ async function fetchMySubmission() {
       currentRankingId.value = data.ranking_id
       currentArrangedResume.value = data.arranged_resume
       
-      // Pre-fill fields for re-submission
       if (data.candidate_info) {
         requirements.github = data.candidate_info.github || ''
         requirements.scholarUrl = data.candidate_info.scholar_url || ''
@@ -199,187 +197,248 @@ function renderMarkdown(text) {
 </script>
 
 <template>
-  <div class="wrap">
-    <div class="header">
-      <h1 class="logo" @click="goHome">Hiring Agent</h1>
-      <div v-if="user" class="user-info">
-        <span>Logged in as <b>{{ user.username }}</b> ({{ user.role }})</span>
-        <button class="mini" @click="logout">Logout</button>
-      </div>
-    </div>
-
-    <div v-if="!user">
-      <Auth @authenticated="onAuthenticated" />
-    </div>
-
-    <div v-else-if="user.role === 'candidate'">
-      <div v-if="!selectedJob">
-        <JobList @select-job="selectJob" />
-      </div>
-      <div v-else>
-        <div class="job-header">
-          <h2>Applying for: {{ selectedJob.title }}</h2>
-          <button class="mini" @click="selectedJob = null">← Back</button>
+  <div class="app-root">
+    <header class="main-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <h1 class="logo" @click="goHome">
+            <span class="logo-icon">H</span> HiringAgent
+          </h1>
         </div>
-        
-        <div class="job-desc-readonly">
-          <label>Job Description</label>
-          <div :class="['description-content', { 'expanded': isJobExpanded || (!existingSubmission || showReSubmitForm) }]">
-            <div class="markdown-body" v-html="renderMarkdown(selectedJob.description)"></div>
+        <div v-if="user" class="header-right">
+          <div class="user-info">
+            <span class="user-name">{{ user.username }}</span>
+            <span class="user-role badge">{{ user.role }}</span>
+            <button class="mini secondary" @click="logout">Logout</button>
           </div>
-          <button v-if="existingSubmission && !showReSubmitForm" class="text-btn" @click="isJobExpanded = !isJobExpanded">
-            {{ isJobExpanded ? 'Show Less' : 'Show More' }}
-          </button>
         </div>
+      </div>
+    </header>
 
-        <!-- NEW SUBMISSION OR RE-SUBMISSION FORM -->
-        <div v-if="!existingSubmission || showReSubmitForm">
-          <div class="section-title">
-            <h3>{{ existingSubmission ? 'Re-submit Application' : 'Upload your resume' }}</h3>
-            <button v-if="existingSubmission" class="text-btn" @click="showReSubmitForm = false">Cancel</button>
+    <main class="main-container">
+      <div v-if="!user">
+        <Auth @authenticated="onAuthenticated" />
+      </div>
+
+      <div v-else-if="user.role === 'candidate'" class="candidate-view">
+        <div v-if="!selectedJob">
+          <JobList @select-job="selectJob" />
+        </div>
+        <div v-else class="job-detail-view">
+          <div class="job-header-bar">
+            <button class="mini secondary" @click="selectedJob = null">← Jobs</button>
+            <h2 class="job-title">{{ selectedJob.title }}</h2>
           </div>
-
-          <ResumeUpload v-model="file" />
           
-          <div class="background-inputs">
-            <h3>Background Info (Optional)</h3>
-            <div class="form-group">
-              <label>GitHub Username</label>
-              <input v-model="requirements.github" type="text" placeholder="username" />
+          <div class="job-desc-readonly glass-card">
+            <label>Job Requirements</label>
+            <div :class="['description-content', { 'expanded': isJobExpanded || (!existingSubmission || showReSubmitForm) }]">
+              <div class="markdown-body" v-html="renderMarkdown(selectedJob.description)"></div>
             </div>
-            <div class="form-group">
-              <label>Google Scholar URL</label>
-              <input v-model="requirements.scholarUrl" type="text" placeholder="https://scholar.google.com/..." />
-            </div>
-            <div class="form-group">
-              <label>Name Override (if OCR fails)</label>
-              <input v-model="requirements.nameOverride" type="text" placeholder="Full Name" />
-            </div>
-          </div>
-
-          <div class="actions">
-            <button type="button" @click="runAnalysis" :disabled="isWorking">
-              {{ existingSubmission ? 'Update Submission' : 'Submit Application' }}
+            <button v-if="existingSubmission && !showReSubmitForm" class="text-btn" @click="isJobExpanded = !isJobExpanded">
+              {{ isJobExpanded ? 'Show Less' : 'Show Full Requirements' }}
             </button>
-            <div v-if="isWorking" class="loader mini-loader"></div>
-            <span id="status" :class="statusClass">{{ status }}</span>
           </div>
-        </div>
 
-        <!-- VIEW EXISTING SUBMISSION -->
-        <div v-else class="submission-view">
-          <div class="submission-header">
-            <div class="status-info">
-              <span class="submitted-label">Application Status:</span>
-              <span :class="['status-badge', existingSubmission.status]">
-                {{ existingSubmission.status === 'evaluating' ? 'LLM Evaluating...' : 'Submitted' }}
-              </span>
+          <!-- NEW SUBMISSION OR RE-SUBMISSION FORM -->
+          <div v-if="!existingSubmission || showReSubmitForm" class="submission-section glass-card">
+            <div class="section-title">
+              <h3>{{ existingSubmission ? 'Update Application' : 'Apply for this position' }}</h3>
+              <button v-if="existingSubmission" class="text-btn err" @click="showReSubmitForm = false">Cancel</button>
             </div>
-            <button class="mini" @click="showReSubmitForm = true" :disabled="isWorking">Re-submit</button>
+
+            <ResumeUpload v-model="file" />
+            
+            <div class="background-inputs">
+              <h3>External Profiles <small>(Optional)</small></h3>
+              <div class="inputs-grid">
+                <div class="form-group">
+                  <label>GitHub</label>
+                  <input v-model="requirements.github" type="text" placeholder="username" />
+                </div>
+                <div class="form-group">
+                  <label>Google Scholar</label>
+                  <input v-model="requirements.scholarUrl" type="text" placeholder="https://scholar.google.com/..." />
+                </div>
+                <div class="form-group full-width">
+                  <label>Full Name Override</label>
+                  <input v-model="requirements.nameOverride" type="text" placeholder="Only if OCR fails to detect your name" />
+                </div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button type="button" @click="runAnalysis" :disabled="isWorking">
+                {{ existingSubmission ? 'Update Submission' : 'Submit Application' }}
+              </button>
+              <div v-if="isWorking" class="loader mini-loader"></div>
+              <span id="status" :class="statusClass">{{ status }}</span>
+            </div>
           </div>
 
-          <div v-if="existingSubmission.candidate_info" class="meta-preview">
-            <div class="meta-item"><strong>Resume:</strong> {{ existingSubmission.candidate_info.filename }}</div>
-            <div v-if="requirements.github" class="meta-item"><strong>GitHub:</strong> {{ requirements.github }}</div>
-            <div v-if="requirements.scholarUrl" class="meta-item"><strong>Scholar:</strong> Link</div>
+          <!-- VIEW EXISTING SUBMISSION -->
+          <div v-else class="submission-view">
+            <div class="submission-status-bar glass-card">
+              <div class="status-info">
+                <span class="submitted-label">Status</span>
+                <span :class="['status-badge', existingSubmission.status]">
+                  {{ existingSubmission.status === 'evaluating' ? 'Evaluating' : 'Submitted' }}
+                </span>
+              </div>
+              <button class="secondary" @click="showReSubmitForm = true" :disabled="isWorking">Update Application</button>
+            </div>
+
+            <div v-if="currentArrangedResume" class="arranged-data-card glass-card">
+              <div class="card-header-with-hint">
+                <h3>Structured Profile</h3>
+                <p class="hint">Objective summary as seen by our agents</p>
+              </div>
+              <CandidateSnapshot :arranged-resume="currentArrangedResume" />
+            </div>
+            
+            <div v-else-if="isWorking" class="evaluating-card glass-card">
+              <div class="loader"></div>
+              <p>Evaluating submission...</p>
+            </div>
           </div>
 
-          <div v-if="currentArrangedResume" class="arranged-data-card">
-            <h3>Your Structured Resume Data</h3>
-            <p class="hint">This is an objective summary extracted by our AI agents.</p>
-            <CandidateSnapshot :arranged-resume="currentArrangedResume" />
-          </div>
-          <div v-else-if="isWorking" class="evaluating-card">
-            <div class="loader"></div>
-            <p>Our AI agents are analyzing your new submission...</p>
-          </div>
+          <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
         </div>
-
-        <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
       </div>
-    </div>
 
-    <div v-else-if="user.role === 'recruiter'">
-      <RecruiterDashboard ref="recruiterDashboardRef" />
-    </div>
+      <div v-else-if="user.role === 'recruiter'">
+        <RecruiterDashboard ref="recruiterDashboardRef" />
+      </div>
+    </main>
   </div>
 </template>
 
 <style scoped>
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; }
-.logo { cursor: pointer; transition: opacity 0.2s; font-size: 1.4rem; margin: 0; }
-.logo:hover { opacity: 0.7; }
-.job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.user-info { display: flex; gap: 1rem; align-items: center; font-size: 0.9rem; }
-.mini { padding: 0.25rem 0.75rem; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); cursor: pointer; border-radius: 4px; }
+.main-header {
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  width: 100%;
+}
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-.job-desc-readonly { background: var(--bg-card); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
-.job-desc-readonly label { display: block; margin-bottom: 0.75rem; font-weight: bold; font-size: 0.9rem; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+.logo {
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-weight: 700;
+}
 
-.description-content { max-height: 200px; overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, black 60%, transparent 100%); transition: max-height 0.4s ease; }
-.description-content.expanded { max-height: 5000px; mask-image: none; }
-.text-btn { background: none; border: none; color: var(--ok); cursor: pointer; padding: 0.5rem 0; font-size: 0.9rem; font-weight: bold; }
-.text-btn:hover { text-decoration: underline; }
+.logo-icon {
+  background: var(--accent);
+  color: white;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 1rem;
+}
 
-.markdown-body { line-height: 1.6; font-size: 0.95rem; }
-.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { margin-top: 1rem; margin-bottom: 0.75rem; font-size: 1.1rem; }
-.markdown-body :deep(p) { margin-bottom: 0.75rem; }
-.markdown-body :deep(ul), .markdown-body :deep(ol) { margin-bottom: 0.75rem; padding-left: 1.5rem; }
+.user-info { display: flex; gap: 1rem; align-items: center; }
+.user-name { font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+.badge {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
 
-.section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.section-title h3 { margin: 0; }
-.text-btn { background: none; border: none; color: var(--err); cursor: pointer; font-size: 0.9rem; }
+.job-header-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.job-title { margin: 0; font-size: 1.5rem; }
 
-.background-inputs { margin-top: 1.5rem; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
-.background-inputs h3 { margin-bottom: 1rem; font-size: 1.1rem; }
-.form-group { margin-bottom: 1rem; }
-.form-group label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; }
-.form-group input { width: 100%; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; }
+.job-desc-readonly { padding: 1.25rem; margin-bottom: 1.5rem; }
+.job-desc-readonly label { border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1rem; }
 
-.actions { margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.description-content { 
+  max-height: 200px; 
+  overflow: hidden; 
+  position: relative; 
+  transition: max-height 0.4s ease; 
+}
+.description-content::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, var(--bg-subtle));
+}
+.description-content.expanded::after { display: none; }
+.description-content.expanded { max-height: 5000px; }
+
+.text-btn { 
+  background: none; border: none; color: var(--accent); 
+  cursor: pointer; padding: 0.5rem 0; font-size: 0.9rem; font-weight: 700;
+}
+.text-btn.err { color: var(--err); }
+
+.submission-section { padding: 1.5rem; }
+.section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.section-title h3 { margin: 0; font-size: 1.1rem; }
+
+.background-inputs { margin-top: 1.5rem; }
+.background-inputs h3 { margin-bottom: 1rem; font-size: 1rem; border-left: 3px solid var(--accent); padding-left: 0.75rem; }
+.inputs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.full-width { grid-column: span 2; }
+
+.actions { margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; }
 #status { font-size: 0.9rem; color: var(--muted); }
-#status.err { color: var(--err); }
 #status.ok { color: var(--ok); }
+#status.err { color: var(--err); }
 
-.submission-view { margin-top: 1.5rem; animation: fadeIn 0.3s ease-out; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-.submission-header { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 1rem 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+.submission-status-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; margin-bottom: 1.5rem; }
 .status-info { display: flex; align-items: center; gap: 1rem; }
-.submitted-label { font-weight: bold; font-size: 0.9rem; }
+.submitted-label { font-weight: 700; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
 
-.status-badge { padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: bold; width: fit-content; }
-.status-badge.evaluating { background: #3b82f622; color: #3b82f6; border: 1px solid #3b82f644; }
-.status-badge.ready { background: #10b98122; color: #10b981; border: 1px solid #10b98144; }
+.status-badge { padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; border: 1px solid var(--border); text-transform: uppercase; }
+.status-badge.evaluating { color: var(--accent); border-color: var(--accent); }
+.status-badge.ready { color: var(--ok); border-color: var(--ok); }
 
-.meta-preview { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 1.5rem; padding: 0 0.5rem; font-size: 0.9rem; }
+.arranged-data-card { padding: 1.5rem; }
+.card-header-with-hint { margin-bottom: 1.5rem; }
+.card-header-with-hint h3 { margin-bottom: 0.25rem; font-size: 1.1rem; }
+.card-header-with-hint .hint { color: var(--muted); font-size: 0.85rem; }
 
-.arranged-data-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
-.arranged-data-card h3 { margin-bottom: 0.25rem; color: var(--fg); }
-.arranged-data-card .hint { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
-
-.evaluating-card { text-align: center; padding: 3rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; display: flex; flex-direction: column; align-items: center; gap: 1rem; color: var(--muted); }
+.evaluating-card { text-align: center; padding: 3rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; color: var(--muted); }
 
 .loader {
   border: 3px solid var(--border);
-  border-top: 3px solid var(--ok);
+  border-top: 3px solid var(--accent);
   border-radius: 50%;
   width: 24px;
   height: 24px;
   animation: spin 1s linear infinite;
 }
-.mini-loader { width: 16px; height: 16px; border-width: 2px; }
+.mini-loader { width: 18px; height: 18px; border-width: 2px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 #errorOut {
-  margin-top: 1rem;
-  padding: 1rem;
-  border-radius: 10px;
-  background: #241a1a;
-  border: 1px solid #7f1d1d;
+  margin-top: 1.25rem;
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.1);
   color: var(--err);
-  overflow: auto;
-  max-height: 40vh;
-  font-size: 0.8rem;
 }
 </style>

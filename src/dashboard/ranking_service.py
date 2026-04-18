@@ -33,6 +33,7 @@ def record_pipeline_ranking(thread_id: str, state: dict[str, Any]) -> str | None
         ranking_id=rid,
         candidate_ref=ref,
         thread_id=thread_id,
+        job_id=state.get("job_id"),
         overall_score=float(overall),
         dimensions=dimensions,
         summary=str(sc.get("summary") or ""),

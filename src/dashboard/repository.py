@@ -29,6 +29,7 @@ def insert_candidate_ranking(
     ranking_id: str,
     candidate_ref: str,
     thread_id: str | None,
+    job_id: str | None = None,
     overall_score: float,
     dimensions: list[dict[str, Any]],
     summary: str,
@@ -41,6 +42,7 @@ def insert_candidate_ranking(
             "ranking_id": ranking_id,
             "candidate_ref": candidate_ref,
             "thread_id": thread_id,
+            "job_id": job_id,
             "overall_score": overall_score,
             "dimensions": dimensions,
             "summary": summary,
@@ -53,13 +55,18 @@ def insert_candidate_ranking(
 def list_rankings(
     limit: int = 50,
     sort_by: str = "overall_score",
+    job_id: str | None = None,
     db: Database[Any] | None = None,
 ) -> list[dict[str, Any]]:
     d = db or get_database()
     col = d["candidate_rankings"]
+    query = {}
+    if job_id:
+        query["job_id"] = job_id
+    
     sort_field = sort_by if sort_by in ("overall_score", "created_at") else "overall_score"
     direction = DESCENDING if sort_field == "overall_score" else DESCENDING
-    cur = col.find({}, sort=[(sort_field, direction)]).limit(min(max(limit, 1), 200))
+    cur = col.find(query, sort=[(sort_field, direction)]).limit(min(max(limit, 1), 200))
     out = []
     for doc in cur:
         doc.pop("_id", None)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -17,7 +18,10 @@ from agents.background_analysis.agent import run_background_analysis
 from agents.hr_strategy.models import HRJobSpec
 from agents.ocr_agent import extract_and_arrange_resume_from_path, is_allowed_upload_suffix
 from agents.scoring.agent import score_match
-from api.deps import verify_hiring_agent_api_key
+from api.deps import verify_hiring_agent_api_key, require_role
+from api.auth_models import User
+from dashboard.repository import insert_candidate_ranking
+from db.mongo import get_database
 from fairness.injection_sanitize import sanitize_resume_text
 from graph.pipeline import extract_hr_job_spec_from_text
 
@@ -66,9 +70,17 @@ async def _analyze_resume_core(
     candidate_github: str | None,
     google_scholar_url: str | None,
     candidate_name_override: str | None,
+    job_id: str | None = None,
+    current_user: User | None = None,
 ) -> AnalyzeResumeResponse:
     if not config.OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not set")
+
+    if job_id and not hr_requirement_text and not job_spec_json:
+        db = get_database()
+        job = db.jobs.find_one({"id": job_id})
+        if job:
+            hr_requirement_text = job.get("description")
 
     raw_name = resume.filename or "upload"
     suffix = Path(raw_name).suffix
@@ -120,7 +132,7 @@ async def _analyze_resume_core(
 
         inj_meta: dict[str, Any] = {"ocr_pass": ocr_inj, "arrange_pass": {"mode": "gpt4o_single_pass"}}
 
-        return AnalyzeResumeResponse(
+        res_obj = AnalyzeResumeResponse(
             scorecard=sc_dict,
             job_spec=job_spec,
             arranged_resume=arranged,
@@ -129,6 +141,29 @@ async def _analyze_resume_core(
             injection_sanitize_meta=inj_meta,
             hitl_style_note=note,
         )
+
+        # Persist ranking
+        dims_list = []
+        for d in sc_dict.get("dimensions") or []:
+            if isinstance(d, dict) and "name" in d and "score" in d:
+                dims_list.append({
+                    "name": d.get("name"),
+                    "score": float(d.get("score", 0)),
+                    "rationale": d.get("rationale", "")
+                })
+
+        insert_candidate_ranking(
+            ranking_id=str(uuid.uuid4()),
+            candidate_ref=current_user.username if current_user else "anonymous",
+            thread_id=None,
+            job_id=job_id,
+            overall_score=float(sc_dict.get("overall_score", 0)),
+            dimensions=dims_list,
+            summary=str(sc_dict.get("summary") or ""),
+            scorecard=sc_dict
+        )
+
+        return res_obj
     finally:
         try:
             os.unlink(tmp_path)
@@ -140,6 +175,7 @@ async def _analyze_resume_core(
 async def analyze_resume(
     _: None = Depends(verify_hiring_agent_api_key),
     resume: UploadFile = File(..., description="Resume PDF or image file"),
+    job_id: str | None = Form(default=None),
     hr_requirement_text: str | None = Form(
         default=None,
         description="Free-text job description (alternatively provide job_spec_json)",
@@ -151,6 +187,7 @@ async def analyze_resume(
     candidate_github: str | None = Form(default=None),
     google_scholar_url: str | None = Form(default=None),
     candidate_name_override: str | None = Form(default=None),
+    current_user: User = Depends(require_role("candidate")),
 ):
     return await _analyze_resume_core(
         resume,
@@ -159,4 +196,6 @@ async def analyze_resume(
         candidate_github,
         google_scholar_url,
         candidate_name_override,
+        job_id=job_id,
+        current_user=current_user,
     )

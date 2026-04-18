@@ -24,6 +24,15 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 - **Mechanism**: Structured LLM evaluation.
 - **Function**: Performs a "Blind Match" by comparing the `HRJobSpec`, structured resume, and background analysis. It outputs a `Scorecard` with detailed scores and rationales.
 
+### 5. Authentication & Account System (`src/api/`)
+- **Role**: Access Control & Multi-role Support.
+- **Mechanism**: Token-based authentication with role-based access control (RBAC).
+- **Function**: Manages user registration, login, and sessions. Differentiates between `candidate` (can upload resumes) and `recruiter` (can access the full ranking dashboard).
+
+### 6. Jobs Management (`src/api/routes_jobs.py`)
+- **Role**: Job lifecycle management.
+- **Function**: Allows recruiters to create and edit job postings. Candidates can view available jobs and apply for specific roles, linking their analysis results to the selected job.
+
 ## Support Modules
 
 ### Fairness & Privacy (`src/fairness/`)

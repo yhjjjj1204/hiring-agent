@@ -1,26 +1,16 @@
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
 import AnalysisResult from './components/AnalysisResult.vue'
+import Auth from './components/Auth.vue'
+import RecruiterDashboard from './components/RecruiterDashboard.vue'
+import JobList from './components/JobList.vue'
 
+const user = ref(null)
+const selectedJob = ref(null)
 const file = ref(null)
 const requirements = reactive({
-  jobDescription: `We are building an internal AI agent platform for recruiting workflows (resume intake, structured extraction, scoring, and human-in-the-loop review). We need a Staff-level AI Engineer to own agent architecture and production reliability.
-
-Responsibilities:
-- Design and implement multi-step agents using LangGraph or equivalent orchestration, including state, checkpoints, and resume or interrupt patterns
-- Integrate LLM calls with structured outputs, JSON schema validation, and guardrails for prompt injection and unsafe tool use
-- Ship FastAPI services, background workers, and observability (tracing, metrics, cost and token accounting) for agent runs
-
-Requirements:
-- Strong Python and async patterns; experience shipping LLM features to production, not only notebooks
-- Hands-on experience with LangChain or LangGraph or similar agent frameworks, plus OpenAI or compatible APIs
-- Solid software engineering: testing, code review, versioning of prompts and tools, and clear failure modes when models are uncertain
-
-Nice to have:
-- Experience with resume or document OCR pipelines, vector search, or RAG evaluation
-- Familiarity with hiring or compliance-sensitive domains and fairness or red-team testing for agent behavior`,
   github: '',
   scholarUrl: '',
   nameOverride: ''
@@ -38,15 +28,10 @@ async function runAnalysis() {
     statusClass.value = "err"
     return
   }
-  if (requirements.jobDescription.trim().length < 15) {
-    status.value = "Job description must be at least about 15 characters."
-    statusClass.value = "err"
-    return
-  }
 
   const fd = new FormData()
   fd.append("resume", file.value, file.value.name)
-  fd.append("hr_requirement_text", requirements.jobDescription.trim())
+  fd.append("job_id", selectedJob.value.id)
   if (requirements.github.trim()) fd.append("candidate_github", requirements.github.trim())
   if (requirements.scholarUrl.trim()) fd.append("google_scholar_url", requirements.scholarUrl.trim())
   if (requirements.nameOverride.trim()) fd.append("candidate_name_override", requirements.nameOverride.trim())
@@ -57,8 +42,14 @@ async function runAnalysis() {
   errorOutput.value = ""
   analysisData.value = null
 
+  const token = localStorage.getItem('token')
+
   try {
-    const res = await fetch("/analyze/resume", { method: "POST", body: fd })
+    const res = await fetch("/analyze/resume", {
+      method: "POST",
+      body: fd,
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
     const text = await res.text()
     let data
     try { data = JSON.parse(text); } catch { data = { raw: text }; }
@@ -80,29 +71,108 @@ async function runAnalysis() {
     isWorking.value = false
   }
 }
+
+function onAuthenticated(u) {
+  user.value = u
+}
+
+function logout() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  user.value = null
+  selectedJob.value = null
+}
+
+function selectJob(job) {
+  selectedJob.value = job
+}
+
+onMounted(() => {
+  const savedUser = localStorage.getItem('user')
+  if (savedUser) {
+    user.value = JSON.parse(savedUser)
+  }
+})
 </script>
 
 <template>
   <div class="wrap">
-    <h1>Resume analysis</h1>
-
-    <ResumeUpload v-model="file" />
-    
-    <JobRequirementInput v-model="requirements" />
-
-    <div class="actions">
-      <button type="button" @click="runAnalysis" :disabled="isWorking">Run analysis</button>
-      <span id="status" :class="statusClass">{{ status }}</span>
+    <div class="header">
+      <h1>Hiring Agent</h1>
+      <div v-if="user" class="user-info">
+        <span>Logged in as <b>{{ user.username }}</b> ({{ user.role }})</span>
+        <button class="mini" @click="logout">Logout</button>
+      </div>
     </div>
 
-    <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
+    <div v-if="!user">
+      <Auth @authenticated="onAuthenticated" />
+    </div>
 
-    <AnalysisResult :data="analysisData" />
+    <div v-else-if="user.role === 'candidate'">
+      <div v-if="!selectedJob">
+        <JobList @select-job="selectJob" />
+      </div>
+      <div v-else>
+        <div class="job-header">
+          <h2>Applying for: {{ selectedJob.title }}</h2>
+          <button class="mini" @click="selectedJob = null">Change Job</button>
+        </div>
+        
+        <div class="job-desc-readonly">
+          <label>Job Description</label>
+          <div class="desc-content">{{ selectedJob.description }}</div>
+        </div>
+
+        <ResumeUpload v-model="file" />
+        
+        <div class="background-inputs">
+          <h3>Background Info (Optional)</h3>
+          <div class="form-group">
+            <label>GitHub Username</label>
+            <input v-model="requirements.github" type="text" placeholder="username" />
+          </div>
+          <div class="form-group">
+            <label>Google Scholar URL</label>
+            <input v-model="requirements.scholarUrl" type="text" placeholder="https://scholar.google.com/..." />
+          </div>
+          <div class="form-group">
+            <label>Name Override (if OCR fails)</label>
+            <input v-model="requirements.nameOverride" type="text" placeholder="Full Name" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" @click="runAnalysis" :disabled="isWorking">Submit Application</button>
+          <span id="status" :class="statusClass">{{ status }}</span>
+        </div>
+
+        <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
+
+        <AnalysisResult :data="analysisData" />
+      </div>
+    </div>
+
+    <div v-else-if="user.role === 'recruiter'">
+      <RecruiterDashboard />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.actions { margin-top: 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+.job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.user-info { display: flex; gap: 1rem; align-items: center; font-size: 0.9rem; }
+.mini { padding: 0.25rem 0.75rem; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); }
+.job-desc-readonly { background: var(--bg-card); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+.job-desc-readonly label { display: block; margin-bottom: 0.5rem; font-weight: bold; font-size: 0.9rem; color: var(--muted); }
+.desc-content { white-space: pre-wrap; line-height: 1.5; }
+.background-inputs { margin-top: 2rem; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
+.background-inputs h3 { margin-bottom: 1rem; font-size: 1.1rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; }
+.form-group input { width: 100%; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; }
+.actions { margin-top: 2rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 #status { font-size: 0.9rem; color: var(--muted); }
 #status.err { color: var(--err); }
 #status.ok { color: var(--ok); }

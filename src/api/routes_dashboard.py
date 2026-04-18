@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
+from api.deps import require_role
+from api.auth_models import User
 
 from dashboard.repository import list_rankings
 
@@ -15,14 +17,19 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 def get_rankings(
     limit: int = Query(30, ge=1, le=200),
     sort: str = Query("overall_score", description="overall_score | created_at"),
+    job_id: str | None = Query(None),
+    current_user: User = Depends(require_role("recruiter")),
 ):
     """Candidate ranking list (default sort: overall_score descending)."""
-    rows = list_rankings(limit=limit, sort_by=sort)
+    rows = list_rankings(limit=limit, sort_by=sort, job_id=job_id)
     return {"count": len(rows), "sort": sort, "items": rows}
 
 
 @router.get("/rankings/matrix")
-def get_rankings_matrix(limit: int = Query(30, ge=1, le=100)):
+def get_rankings_matrix(
+    limit: int = Query(30, ge=1, le=100),
+    current_user: User = Depends(require_role("recruiter")),
+):
     """
     Per-candidate dimension score matrix for heatmaps or radar charts.
     Rows: candidate_ref; columns: dimension name -> score.

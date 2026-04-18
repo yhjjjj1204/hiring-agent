@@ -18,6 +18,7 @@ import CandidateSnapshot from './components/CandidateSnapshot.vue'
 import Auth from './components/Auth.vue'
 import RecruiterDashboard from './components/RecruiterDashboard.vue'
 import JobList from './components/JobList.vue'
+import ChatBot from './components/ChatBot.vue'
 
 const user = ref(null)
 const selectedJob = ref(null)
@@ -56,7 +57,7 @@ async function runAnalysis() {
   if (requirements.scholarUrl.trim()) fd.append("google_scholar_url", requirements.scholarUrl.trim())
   if (requirements.nameOverride.trim()) fd.append("candidate_name_override", requirements.nameOverride.trim())
 
-  isWorking.value = true
+  isWorking = true
   statusClass.value = ""
   status.value = "Uploading and starting evaluation…"
   errorOutput.value = ""
@@ -204,6 +205,22 @@ function renderMarkdown(text) {
   if (!text) return ''
   return marked.parse(text)
 }
+
+const currentContext = ref({})
+
+// Update context based on app state
+watch([user, selectedJob, existingSubmission], () => {
+  const ctx = {}
+  if (user.value) ctx.role = user.value.role
+  if (selectedJob.value) ctx.job = selectedJob.value.title
+  if (existingSubmission.value) ctx.status = existingSubmission.value.status
+  currentContext.value = ctx
+}, { deep: true })
+
+// Special handling for recruiter candidate selection
+function onRecruiterContextChange(newCtx) {
+  currentContext.value = { ...currentContext.value, ...newCtx }
+}
 </script>
 
 <template>
@@ -325,9 +342,11 @@ function renderMarkdown(text) {
       </div>
 
       <div v-else-if="user.role === 'recruiter'">
-        <RecruiterDashboard ref="recruiterDashboardRef" />
+        <RecruiterDashboard ref="recruiterDashboardRef" @context-change="onRecruiterContextChange" />
       </div>
     </main>
+
+    <ChatBot v-if="user" :user="user" :context="currentContext" />
   </div>
 </template>
 

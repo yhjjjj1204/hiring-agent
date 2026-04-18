@@ -15,6 +15,9 @@ import {
 import JobManager from './JobManager.vue'
 import CandidateSnapshot from './CandidateSnapshot.vue'
 
+const props = defineProps(['modelValue'])
+const emit = defineEmits(['context-change'])
+
 const selectedJob = ref(null)
 const selectedCandidate = ref(null)
 const candidates = ref([])
@@ -96,11 +99,13 @@ function onSelectJob(job) {
   status.value = ''
   isEditingJob.value = false
   isJobExpanded.value = false
+  emit('context-change', { job: job.title, candidate: null })
 }
 
 function selectCandidate(candidate) {
   selectedCandidate.value = candidate
   window.scrollTo({ top: 0, behavior: 'smooth' })
+  emit('context-change', { job: selectedJob.value.title, candidate: candidate.candidate_ref })
 }
 
 function startEditJob() {
@@ -125,6 +130,7 @@ async function saveJobUpdate() {
       selectedJob.value = data
       isEditingJob.value = false
       jobStatus.value = ''
+      emit('context-change', { job: data.title })
     } else {
       jobStatus.value = data.detail || 'Update failed'
     }
@@ -146,6 +152,7 @@ function renderMarkdown(text) {
 function reset() {
   selectedJob.value = null
   selectedCandidate.value = null
+  emit('context-change', { job: null, candidate: null })
 }
 
 defineExpose({ reset })
@@ -179,16 +186,10 @@ onUnmounted(() => {
     <!-- 2. CANDIDATE LIST VIEW (FOR A JOB) -->
     <div v-else-if="!selectedCandidate" class="results-page">
       <div class="job-header-bar">
-        <button class="mini secondary" @click="selectedJob = null">
-          <ChevronLeft :size="14" />
-          Back to Positions
-        </button>
+        <button class="mini secondary" @click="selectedJob = null">← Back</button>
         <h2 class="job-title">{{ selectedJob.title }}</h2>
         <div class="header-actions">
-          <button class="mini secondary warn" @click="reEvaluateAll">
-            <RotateCw :size="14" />
-            Re-evaluate All
-          </button>
+          <button class="mini secondary warn" @click="reEvaluateAll">Re-evaluate All</button>
         </div>
       </div>
 
@@ -239,8 +240,7 @@ onUnmounted(() => {
               <div class="entry-main">
                 <h4 class="cand-name">{{ c.candidate_ref }}</h4>
                 <div :class="['status-pill', c.status]">
-                  <RefreshCw v-if="c.status === 'evaluating'" :size="12" class="spin" />
-                  <CheckCircle v-else :size="12" />
+                  <span class="status-dot"></span>
                   {{ c.status === 'evaluating' ? 'Evaluating' : 'Ready' }}
                 </div>
               </div>
@@ -279,15 +279,11 @@ onUnmounted(() => {
     <div v-else class="candidate-page">
       <div class="page-header">
         <div class="title-area">
-          <button class="mini secondary" @click="selectedCandidate = null">
-            <ChevronLeft :size="14" />
-            Back to Grid
-          </button>
+          <button class="mini secondary" @click="selectedCandidate = null">← Applications</button>
           <div class="candidate-title">
             <h2 class="cand-page-name">{{ selectedCandidate.candidate_ref }}</h2>
             <div :class="['status-pill large', selectedCandidate.status]">
-               <RefreshCw v-if="selectedCandidate.status === 'evaluating'" :size="14" class="spin" />
-               <CheckCircle v-else :size="14" />
+               <span class="status-dot"></span>
                {{ selectedCandidate.status }}
             </div>
           </div>
@@ -475,9 +471,9 @@ onUnmounted(() => {
 .dual-pane { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1.5rem; }
 
 /* Dimensions and Footer */
-.entry-dimensions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.entry-dimensions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .dim-pill { 
-  background: var(--bg); border: 1px solid var(--border); padding: 0.2rem 0.5rem; 
+  background: var(--bg); border: 1px solid var(--border); padding: 0.15rem 0.4rem; 
   border-radius: 4px; font-size: 0.7rem; display: flex; gap: 0.4rem; 
 }
 .dim-val { color: var(--ok); font-weight: 700; }

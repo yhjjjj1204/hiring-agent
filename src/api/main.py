@@ -21,6 +21,7 @@ from api.routes_data import router as data_router
 from api.routes_hr_strategy import router as hr_strategy_router
 from api.routes_auth import router as auth_router
 from api.routes_jobs import router as jobs_router
+from api.routes_chat import router as chat_router
 from graph.workflow import build_graph
 
 
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Hiring Agent API", version=__version__, lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(jobs_router)
+app.include_router(chat_router)
 app.include_router(hr_strategy_router)
 app.include_router(analyze_router)
 app.include_router(data_router)

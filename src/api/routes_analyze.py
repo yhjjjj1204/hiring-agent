@@ -229,6 +229,50 @@ async def re_evaluate_resume(
     return {"status": "evaluating"}
 
 
+@router.post("/re-evaluate-all/{job_id}")
+async def re_evaluate_all(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_role("recruiter")),
+):
+    db = get_database()
+    job = db.jobs.find_one({"id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    hr_requirement_text = job.get("description")
+    
+    rankings = list(db.candidate_rankings.find({"job_id": job_id}))
+    count = 0
+    for r in rankings:
+        ranking_id = r["ranking_id"]
+        files = list(_UPLOAD_DIR.glob(f"{ranking_id}.*"))
+        if not files:
+            continue
+        
+        resume_path = files[0]
+        cinfo = r.get("candidate_info") or {}
+        
+        db.candidate_rankings.update_one(
+            {"ranking_id": ranking_id},
+            {"$set": {"status": "evaluating"}}
+        )
+        
+        background_tasks.add_task(
+            _background_evaluate_resume,
+            ranking_id=ranking_id,
+            resume_path=resume_path,
+            hr_requirement_text=hr_requirement_text,
+            job_spec_json=None,
+            candidate_github=cinfo.get("github"),
+            google_scholar_url=cinfo.get("scholar_url"),
+            candidate_name_override=cinfo.get("name_override"),
+        )
+        count += 1
+        
+    return {"status": "evaluating", "count": count}
+
+
 @router.get("/resume/{ranking_id}")
 async def get_resume_file(
     ranking_id: str,

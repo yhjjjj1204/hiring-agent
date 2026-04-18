@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { marked } from 'marked'
 import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
 import AnalysisResult from './components/AnalysisResult.vue'
@@ -9,6 +10,7 @@ import JobList from './components/JobList.vue'
 
 const user = ref(null)
 const selectedJob = ref(null)
+const recruiterDashboardRef = ref(null)
 const file = ref(null)
 const requirements = reactive({
   github: '',
@@ -63,7 +65,7 @@ async function runAnalysis() {
     
     status.value = "Application submitted successfully! Our recruiters will review it soon."
     statusClass.value = "ok"
-    analysisData.value = null // Clear any previous results
+    analysisData.value = null 
   } catch (e) {
     status.value = "Request failed: " + (e && e.message ? e.message : String(e))
     statusClass.value = "err"
@@ -87,18 +89,33 @@ function selectJob(job) {
   selectedJob.value = job
 }
 
+function goHome() {
+  selectedJob.value = null
+  if (recruiterDashboardRef.value) {
+    recruiterDashboardRef.value.reset()
+  }
+  status.value = ''
+  statusClass.value = ''
+  errorOutput.value = ''
+}
+
 onMounted(() => {
   const savedUser = localStorage.getItem('user')
   if (savedUser) {
     user.value = JSON.parse(savedUser)
   }
 })
+
+function renderMarkdown(text) {
+  if (!text) return ''
+  return marked.parse(text)
+}
 </script>
 
 <template>
   <div class="wrap">
     <div class="header">
-      <h1>Hiring Agent</h1>
+      <h1 class="logo" @click="goHome">Hiring Agent</h1>
       <div v-if="user" class="user-info">
         <span>Logged in as <b>{{ user.username }}</b> ({{ user.role }})</span>
         <button class="mini" @click="logout">Logout</button>
@@ -121,7 +138,7 @@ onMounted(() => {
         
         <div class="job-desc-readonly">
           <label>Job Description</label>
-          <div class="desc-content">{{ selectedJob.description }}</div>
+          <div class="desc-content markdown-body" v-html="renderMarkdown(selectedJob.description)"></div>
         </div>
 
         <ResumeUpload v-model="file" />
@@ -152,19 +169,27 @@ onMounted(() => {
     </div>
 
     <div v-else-if="user.role === 'recruiter'">
-      <RecruiterDashboard />
+      <RecruiterDashboard ref="recruiterDashboardRef" />
     </div>
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+.logo { cursor: pointer; transition: opacity 0.2s; }
+.logo:hover { opacity: 0.7; }
 .job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .user-info { display: flex; gap: 1rem; align-items: center; font-size: 0.9rem; }
-.mini { padding: 0.25rem 0.75rem; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); }
-.job-desc-readonly { background: var(--bg-card); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
-.job-desc-readonly label { display: block; margin-bottom: 0.5rem; font-weight: bold; font-size: 0.9rem; color: var(--muted); }
-.desc-content { white-space: pre-wrap; line-height: 1.5; }
+.mini { padding: 0.25rem 0.75rem; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); cursor: pointer; border-radius: 4px; }
+.job-desc-readonly { background: var(--bg-card); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+.job-desc-readonly label { display: block; margin-bottom: 1rem; font-weight: bold; font-size: 0.9rem; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+.markdown-body { line-height: 1.6; font-size: 0.95rem; }
+.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { margin-top: 1.5rem; margin-bottom: 0.75rem; }
+.markdown-body :deep(p) { margin-bottom: 1rem; }
+.markdown-body :deep(ul), .markdown-body :deep(ol) { margin-bottom: 1rem; padding-left: 1.5rem; }
+.markdown-body :deep(li) { margin-bottom: 0.25rem; }
+
 .background-inputs { margin-top: 2rem; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
 .background-inputs h3 { margin-bottom: 1rem; font-size: 1.1rem; }
 .form-group { margin-bottom: 1rem; }

@@ -45,6 +45,7 @@
               packages = [
                 pythonEnv
                 pkgs.mongodb
+                pkgs.nodejs
               ];
               shellHook = ''
                 export PYTHONPATH="$PYTHONPATH:$PWD/src"
@@ -52,6 +53,16 @@
             };
 
           packages = rec {
+            frontend = pkgs.buildNpmPackage {
+              pname = "hiring-agent-frontend";
+              version = "0.1.0";
+              src = ./frontend;
+              npmDepsHash = "sha256-+kgdnUKIjsYN0Su8pwmU5IO7sEWg3IGUnoRDkot+WFM=";
+              installPhase = ''
+                cp -r dist $out
+              '';
+            };
+
             hiring-agent =
               let
                 pythonDeps = ps: [
@@ -75,7 +86,12 @@
                 buildInputs = [ pythonEnv ];
                 installPhase = ''
                   mkdir -p $out/share/hiring-agent
-                  cp -r src frontend AGENTS.md $out/share/hiring-agent/
+                  cp -r src AGENTS.md $out/share/hiring-agent/
+
+                  # Copy pre-compiled frontend to share
+                  mkdir -p $out/share/hiring-agent/frontend/dist
+                  cp -r ${frontend}/* $out/share/hiring-agent/frontend/dist/
+
                   mkdir -p $out/bin
                   cat > $out/bin/hiring-agent <<EOF
                   #!/bin/sh

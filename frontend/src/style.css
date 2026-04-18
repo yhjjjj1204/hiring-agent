@@ -1,0 +1,138 @@
+:root {
+  --bg: #0f1419;
+  --panel: #1a2332;
+  --text: #e7eef7;
+  --muted: #8b9cb3;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --err: #f87171;
+  --ok: #4ade80;
+  --border: #2d3a4f;
+  --warn-bg: #2a2419;
+  --warn-border: #a16207;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 1.25rem 0 0.75rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 0.95rem;
+  margin: 1rem 0 0.5rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #111923;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+textarea {
+  min-height: 200px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+table.dim {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  margin-top: 0.35rem;
+}
+
+table.dim th,
+table.dim td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+table.dim th {
+  background: #141d2a;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+table.dim .num {
+  width: 4.5rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+pre {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  overflow: auto;
+  max-height: 50vh;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+a {
+  color: var(--accent);
+}

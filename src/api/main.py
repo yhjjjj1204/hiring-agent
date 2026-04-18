@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from version import __version__
 from agents.background_analysis.repository import ensure_background_analysis_indexes
@@ -38,7 +39,8 @@ app.include_router(monitor_router)
 app.include_router(dashboard_router)
 _graph = build_graph()
 
-_UI_INDEX = Path(__file__).resolve().parent.parent.parent / "frontend" / "index.html"
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
+_UI_INDEX = _FRONTEND_DIR / "index.html"
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -47,6 +49,12 @@ def serve_resume_analyze_ui():
     if not _UI_INDEX.is_file():
         return HTMLResponse("<p>frontend/index.html not found</p>", status_code=404)
     return HTMLResponse(_UI_INDEX.read_text(encoding="utf-8"))
+
+
+# Mount the entire frontend directory for development (scripts, components, styles)
+if _FRONTEND_DIR.is_dir():
+    app.mount("/src", StaticFiles(directory=str(_FRONTEND_DIR / "src")), name="frontend-src")
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIR / "src" / "assets"), check_dir=False), name="frontend-assets")
 
 
 @app.get("/health")

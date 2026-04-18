@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { Plus, X, Briefcase, ChevronRight } from 'lucide-vue-next'
 
 const emit = defineEmits(['select-job'])
 
@@ -55,7 +56,9 @@ onMounted(fetchJobs)
         <p class="page-header-subtitle">Manage your open roles and review candidates</p>
       </div>
       <button :class="['create-btn', showCreate ? 'secondary' : '']" @click="showCreate = !showCreate">
-        <span v-if="!showCreate">+ Add Position</span>
+        <Plus v-if="!showCreate" :size="16" />
+        <X v-else :size="16" />
+        <span v-if="!showCreate">Add Position</span>
         <span v-else>Close</span>
       </button>
     </div>
@@ -82,7 +85,10 @@ onMounted(fetchJobs)
       <div v-for="j in jobs" :key="j.id" class="job-card glass-card" @click="emit('select-job', j)">
         <div class="job-card-header">
           <div class="job-card-title-group">
-            <h4>{{ j.title }}</h4>
+            <div class="title-with-icon">
+              <Briefcase :size="16" class="title-icon" />
+              <h4>{{ j.title }}</h4>
+            </div>
             <span class="job-card-date">Posted {{ new Date(j.created_at).toLocaleDateString() }}</span>
           </div>
           <div class="status-badge-outline ok">Active</div>
@@ -92,7 +98,10 @@ onMounted(fetchJobs)
         </div>
         <div class="job-card-footer">
           <span class="job-card-type">Corporate</span>
-          <span class="job-card-action">Manage →</span>
+          <span class="job-card-action">
+            Manage 
+            <ChevronRight :size="14" />
+          </span>
         </div>
       </div>
     </div>
@@ -110,4 +119,10 @@ onMounted(fetchJobs)
 
 .form-actions { margin-top: 2rem; display: flex; align-items: center; gap: 1.5rem; }
 .err-msg { color: var(--err); font-size: 0.9rem; font-weight: 600; }
+
+.title-with-icon { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.2rem; }
+.title-icon { color: var(--accent); opacity: 0.8; }
+.title-with-icon h4 { margin: 0; }
+
+.job-card-action { display: flex; align-items: center; gap: 0.25rem; }
 </style>

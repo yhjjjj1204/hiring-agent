@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { FileUp } from 'lucide-vue-next'
 
 const props = defineProps(['modelValue'])
 const emit = defineEmits(['update:modelValue'])
@@ -43,7 +44,9 @@ function onFileChange(e) {
     />
     
     <div class="upload-content">
-      <div class="upload-icon">📄</div>
+      <div class="upload-icon-wrap">
+        <FileUp :size="32" class="upload-icon" />
+      </div>
       <div v-if="!fileName" class="upload-text">
         <p class="main-text">Click or drop resume here</p>
         <p class="sub-text">PDF, PNG, JPG or WebP (max 10MB)</p>
@@ -58,20 +61,20 @@ function onFileChange(e) {
 
 <style scoped>
 .upload-box {
-  border: 2px dashed var(--glass-border);
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 16px;
-  padding: 3rem 2rem;
+  border: 1px dashed var(--border);
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 2.5rem 2rem;
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
 }
 
 .upload-box:hover, .upload-box.is-over {
   border-color: var(--accent);
-  background: var(--accent-glow);
+  background: rgba(59, 130, 246, 0.05);
 }
 
 .upload-content {
@@ -81,19 +84,30 @@ function onFileChange(e) {
   gap: 1rem;
 }
 
-.upload-icon {
-  font-size: 3rem;
-  opacity: 0.8;
-  transition: transform 0.3s ease;
+.upload-icon-wrap {
+  width: 56px;
+  height: 56px;
+  background: var(--bg-subtle);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  transition: all 0.2s ease;
 }
-.upload-box:hover .upload-icon { transform: scale(1.1); }
+.upload-box:hover .upload-icon-wrap {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
 
-.main-text { font-size: 1.1rem; font-weight: 700; color: var(--text); }
-.sub-text { font-size: 0.85rem; color: var(--muted); }
+.main-text { font-size: 1rem; font-weight: 700; color: #fff; }
+.sub-text { font-size: 0.8rem; color: var(--muted); }
 
-.file-info { display: flex; flex-direction: column; gap: 0.5rem; }
-.file-name { font-weight: 700; color: var(--ok); font-size: 1.1rem; }
-.change-link { font-size: 0.8rem; color: var(--accent); font-weight: 600; text-transform: uppercase; }
+.file-info { display: flex; flex-direction: column; gap: 0.25rem; }
+.file-name { font-weight: 700; color: var(--ok); font-size: 1rem; }
+.change-link { font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase; }
 
 .is-over::after {
   content: 'Drop to upload';
@@ -104,8 +118,8 @@ function onFileChange(e) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 1.25rem;
-  opacity: 0.9;
+  font-weight: 700;
+  font-size: 1.1rem;
+  opacity: 0.95;
 }
 </style>

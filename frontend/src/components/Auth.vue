@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { Lock, UserCircle, UserSearch } from 'lucide-vue-next'
 
 const props = defineProps(['modelValue'])
 const emit = defineEmits(['update:modelValue', 'authenticated'])
@@ -55,7 +56,9 @@ async function submit() {
   <div class="auth-container">
     <div class="auth-card glass-card">
       <div class="auth-header">
-        <div class="auth-icon">🔐</div>
+        <div class="auth-icon">
+          <Lock :size="32" />
+        </div>
         <h2>{{ isLogin ? 'Welcome Back' : 'Create Account' }}</h2>
         <p class="auth-subtitle">{{ isLogin ? 'Sign in to access your recruitment dashboard' : 'Join the next generation of AI-driven hiring' }}</p>
       </div>
@@ -76,10 +79,12 @@ async function submit() {
           <div class="role-selector">
             <label :class="['role-option', { active: role === 'candidate' }]">
               <input type="radio" value="candidate" v-model="role" />
+              <UserCircle :size="16" />
               <span>Candidate</span>
             </label>
             <label :class="['role-option', { active: role === 'recruiter' }]">
               <input type="radio" value="recruiter" v-model="role" />
+              <UserSearch :size="16" />
               <span>Recruiter</span>
             </label>
           </div>
@@ -103,14 +108,14 @@ async function submit() {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 70vh;
+  min-height: 60vh;
   padding: 2rem;
 }
 
 .auth-card {
   width: 100%;
-  max-width: 480px;
-  padding: 3rem;
+  max-width: 440px;
+  padding: 2.5rem;
   display: flex;
   flex-direction: column;
   gap: 2rem;
@@ -118,66 +123,64 @@ async function submit() {
 
 .auth-header { text-align: center; }
 .auth-icon { 
-  font-size: 2.5rem; 
-  margin-bottom: 1rem;
-  background: var(--glass-border);
+  margin-bottom: 1.25rem;
+  background: rgba(255, 255, 255, 0.03);
   width: 64px;
   height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
+  border-radius: 12px;
   margin-left: auto;
   margin-right: auto;
+  border: 1px solid var(--border);
+  color: var(--accent);
 }
-.auth-subtitle { color: var(--muted); font-size: 0.95rem; margin-top: 0.5rem; }
+.auth-subtitle { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
 
-.auth-form { display: flex; flex-direction: column; gap: 1.5rem; }
+.auth-form { display: flex; flex-direction: column; gap: 1.25rem; }
 
 .role-selector {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-top: 0.5rem;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
 }
 
 .role-option {
-  position: relative;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--glass-border);
-  padding: 0.75rem;
-  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 0.6rem;
+  border-radius: 4px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  margin: 0;
-  display: block;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--muted);
 }
 
 .role-option input { display: none; }
-.role-option span { 
-  font-size: 0.9rem; 
-  font-weight: 700; 
-  color: var(--muted); 
-  text-transform: none;
-}
+.role-option span { font-size: 0.85rem; font-weight: 700; text-transform: none; }
 
 .role-option.active {
   border-color: var(--accent);
   background: var(--accent-glow);
+  color: #fff;
 }
-.role-option.active span { color: white; }
 
-.auth-actions { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
+.auth-actions { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; }
 .full-width { width: 100%; }
 
 .status-msg {
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  padding: 0.75rem;
-  border-radius: 8px;
+  padding: 0.6rem;
+  border-radius: 4px;
 }
-.status-msg.err { background: rgba(239, 68, 68, 0.1); color: var(--err); border: 1px solid rgba(239, 68, 68, 0.2); }
-.status-msg.ok { background: rgba(16, 185, 129, 0.1); color: var(--ok); border: 1px solid rgba(16, 185, 129, 0.2); }
+.status-msg.err { background: rgba(239, 68, 68, 0.05); color: var(--err); border: 1px solid rgba(239, 68, 68, 0.1); }
+.status-msg.ok { background: rgba(16, 185, 129, 0.05); color: var(--ok); border: 1px solid rgba(16, 185, 129, 0.1); }
 </style>

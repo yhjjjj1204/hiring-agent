@@ -1,6 +1,17 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { marked } from 'marked'
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  RotateCw, 
+  Download, 
+  AlertTriangle,
+  RefreshCw,
+  CheckCircle,
+  Users,
+  ArrowRight
+} from 'lucide-vue-next'
 import JobManager from './JobManager.vue'
 import CandidateSnapshot from './CandidateSnapshot.vue'
 
@@ -168,14 +179,20 @@ onUnmounted(() => {
     <!-- 2. CANDIDATE LIST VIEW (FOR A JOB) -->
     <div v-else-if="!selectedCandidate" class="results-page">
       <div class="job-header-bar">
-        <button class="mini secondary" @click="selectedJob = null">← Back</button>
+        <button class="mini secondary" @click="selectedJob = null">
+          <ChevronLeft :size="14" />
+          Back to Positions
+        </button>
         <h2 class="job-title">{{ selectedJob.title }}</h2>
         <div class="header-actions">
-          <button class="mini secondary warn" @click="reEvaluateAll">Re-evaluate All</button>
+          <button class="mini secondary warn" @click="reEvaluateAll">
+            <RotateCw :size="14" />
+            Re-evaluate All
+          </button>
         </div>
       </div>
 
-      <!-- Job Preview/Edit Section (REUSES CANDIDATE LAYOUT) -->
+      <!-- Job Preview/Edit Section -->
       <div class="job-desc-readonly glass-card">
         <div v-if="!isEditingJob">
           <div class="preview-header">
@@ -201,7 +218,7 @@ onUnmounted(() => {
               <textarea v-model="editJobData.description" rows="12"></textarea>
             </div>
           </div>
-          <div class="form-actions btn-group">
+          <div class="form-actions">
             <button @click="saveJobUpdate">Update Job</button>
             <button class="secondary" @click="isEditingJob = false">Cancel</button>
           </div>
@@ -222,7 +239,8 @@ onUnmounted(() => {
               <div class="entry-main">
                 <h4 class="cand-name">{{ c.candidate_ref }}</h4>
                 <div :class="['status-pill', c.status]">
-                  <span class="status-dot"></span>
+                  <RefreshCw v-if="c.status === 'evaluating'" :size="12" class="spin" />
+                  <CheckCircle v-else :size="12" />
                   {{ c.status === 'evaluating' ? 'Evaluating' : 'Ready' }}
                 </div>
               </div>
@@ -243,11 +261,15 @@ onUnmounted(() => {
             
             <div class="entry-footer">
               <div class="entry-ts">{{ formatDate(c.submitted_at).split(',')[0] }}</div>
-              <div class="view-details">Review Details →</div>
+              <div class="view-details">
+                Review Details 
+                <ChevronRight :size="14" />
+              </div>
             </div>
           </div>
         </div>
         <p v-else-if="!status" class="empty-state glass-card">
+          <Users :size="24" class="empty-icon" />
           No applications received yet.
         </p>
       </div>
@@ -257,18 +279,28 @@ onUnmounted(() => {
     <div v-else class="candidate-page">
       <div class="page-header">
         <div class="title-area">
-          <button class="mini secondary" @click="selectedCandidate = null">← Back to Grid</button>
+          <button class="mini secondary" @click="selectedCandidate = null">
+            <ChevronLeft :size="14" />
+            Back to Grid
+          </button>
           <div class="candidate-title">
             <h2 class="cand-page-name">{{ selectedCandidate.candidate_ref }}</h2>
             <div :class="['status-pill large', selectedCandidate.status]">
-               <span class="status-dot"></span>
+               <RefreshCw v-if="selectedCandidate.status === 'evaluating'" :size="14" class="spin" />
+               <CheckCircle v-else :size="14" />
                {{ selectedCandidate.status }}
             </div>
           </div>
         </div>
-        <div class="header-actions btn-group">
-           <button class="secondary" @click="downloadResume(selectedCandidate.ranking_id)">Download CV</button>
-           <button class="secondary warn" @click="reEvaluate(selectedCandidate.ranking_id)">Re-evaluate</button>
+        <div class="header-actions">
+           <button class="secondary" @click="downloadResume(selectedCandidate.ranking_id)">
+             <Download :size="14" />
+             Download CV
+           </button>
+           <button class="secondary warn" @click="reEvaluate(selectedCandidate.ranking_id)">
+             <RotateCw :size="14" />
+             Re-evaluate
+           </button>
         </div>
       </div>
 
@@ -330,7 +362,7 @@ onUnmounted(() => {
               </div>
             </div>
             <div v-else class="evaluating-placeholder">
-              <div class="loader"></div>
+              <RefreshCw class="loader spin" :size="48" />
               <p>Evaluating candidate data...</p>
             </div>
           </div>
@@ -343,16 +375,15 @@ onUnmounted(() => {
 <style scoped>
 .dashboard { animation: fadeIn 0.4s ease-out; }
 
-.job-header-bar { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; }
+.job-header-bar { display: flex; align-items: center; gap: 1.25rem; margin-bottom: 1.25rem; }
 .job-title { margin: 0; font-size: 1.6rem; flex-grow: 1; line-height: 1.2; }
 
-.header-actions { display: flex; gap: 1rem; align-items: center; }
-.btn-group { display: flex; gap: 1rem; }
+.header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .warn { color: #f59e0b !important; border-color: rgba(245, 158, 11, 0.3) !important; }
 
-/* Reused Candidate Style */
-.job-desc-readonly { padding: 1.5rem; margin-bottom: 2rem; position: relative; }
-.job-desc-readonly label { border-bottom: 1px solid var(--border); padding-bottom: 0.6rem; margin-bottom: 1.25rem; }
+/* Shared Layout Reused */
+.job-desc-readonly { padding: 1.25rem; margin-bottom: 2rem; position: relative; }
+.job-desc-readonly label { border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1rem; }
 
 .preview-header { display: flex; justify-content: space-between; align-items: center; }
 
@@ -373,18 +404,18 @@ onUnmounted(() => {
 }
 .description-content.expanded::after { display: none; }
 .description-content.expanded { max-height: 5000px; }
-.text-btn { font-size: 0.9rem; color: var(--accent); cursor: pointer; padding: 0.75rem 0; font-weight: 700; background: none; border: none; }
+.text-btn { font-size: 0.85rem; color: var(--accent); cursor: pointer; padding: 0.5rem 0; font-weight: 700; background: none; border: none; }
 
 .job-edit-form { padding: 0.5rem 0; }
-.form-grid { display: flex; flex-direction: column; gap: 1.5rem; }
-.form-actions { margin-top: 2rem; }
+.form-grid { display: flex; flex-direction: column; gap: 1.25rem; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
 
 /* Status Pills */
 .status-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.25rem 0.6rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: 700;
@@ -394,13 +425,13 @@ onUnmounted(() => {
   height: fit-content;
 }
 .status-pill.evaluating { color: var(--accent); border-color: var(--accent); }
-.status-pill.evaluating .status-dot { background: var(--accent); animation: pulse 1.5s infinite; }
 .status-pill.ready { color: var(--ok); border-color: var(--ok); }
-.status-pill.ready .status-dot { background: var(--ok); }
-.status-pill.large { padding: 0.4rem 0.75rem; font-size: 0.75rem; }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; }
+.status-pill.large { padding: 0.35rem 0.6rem; font-size: 0.75rem; }
 
-/* GRID LAYOUT FOR CANDIDATE CARDS */
+.spin { animation: spin 1.5s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Grid Entry Alignment */
 .candidate-grid { 
   display: grid; 
   grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); 
@@ -408,9 +439,9 @@ onUnmounted(() => {
 }
 
 .candidate-entry-card {
-  padding: 1.75rem;
+  padding: 1.5rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.15s ease;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -418,15 +449,15 @@ onUnmounted(() => {
 .candidate-entry-card:hover { background: rgba(255, 255, 255, 0.03); border-color: var(--muted); }
 
 .entry-header { display: flex; justify-content: space-between; align-items: flex-start; }
-.entry-main { display: flex; align-items: center; gap: 1rem; }
-.cand-name { font-size: 1.2rem; margin: 0; color: #fff; line-height: 1.2; }
+.entry-main { display: flex; align-items: center; gap: 0.75rem; }
+.cand-name { font-size: 1.15rem; margin: 0; color: #fff; line-height: 1.2; }
 
 .entry-score { text-align: right; }
-.score-val { display: block; font-size: 1.75rem; font-weight: 700; color: var(--ok); line-height: 1; }
-.score-label { font-size: 0.65rem; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+.score-val { display: block; font-size: 1.5rem; font-weight: 700; color: var(--ok); line-height: 1; }
+.score-label { font-size: 0.6rem; color: var(--muted); font-weight: 700; }
 
 .entry-summary { 
-  font-size: 0.95rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; 
+  font-size: 0.9rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; 
   -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5;
 }
 
@@ -456,7 +487,7 @@ onUnmounted(() => {
   padding-top: 1rem; border-top: 1px solid var(--border); 
 }
 .entry-ts { font-size: 0.8rem; color: var(--muted); }
-.view-details { color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+.view-details { color: var(--accent); font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 0.25rem; }
 
 .pane-header { padding: 1.25rem 2rem; border-bottom: 1px solid var(--border); }
 .pane-header h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
@@ -469,7 +500,7 @@ onUnmounted(() => {
 }
 .match-score-wrap { margin-bottom: 1rem; }
 .big-score { display: block; font-size: 3.5rem; font-weight: 700; color: var(--ok); line-height: 1; }
-.big-score small { font-size: 1.5rem; margin-left: 2px; opacity: 0.7; }
+.big-score small { font-size: 1.2rem; margin-left: 2px; opacity: 0.7; }
 .match-label { font-size: 0.75rem; font-weight: 800; color: var(--muted); text-transform: uppercase; }
 .analysis-summary { font-size: 1.05rem; color: var(--text); line-height: 1.7; font-style: italic; opacity: 0.95; }
 
@@ -478,14 +509,14 @@ onUnmounted(() => {
 .detail-score { color: var(--ok); font-weight: 800; font-size: 1.1rem; }
 .detail-rationale { font-size: 0.95rem; color: var(--muted); line-height: 1.6; }
 
-.candidates-section { margin-top: 4rem; }
+.candidates-section { margin-top: 3.5rem; }
 .section-header { margin-bottom: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
 .section-header h3 { margin: 0; font-size: 1.4rem; }
 
 .count-badge { background: var(--accent); color: white; padding: 0.1rem 0.6rem; border-radius: 4px; font-size: 0.8rem; vertical-align: middle; margin-left: 0.5rem; }
 
-.empty-state { text-align: center; padding: 6rem 2rem; color: var(--muted); }
-.empty-icon { display: block; font-size: 3rem; margin-bottom: 1rem; opacity: 0.2; }
+.empty-state { text-align: center; padding: 6rem 2rem; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.empty-icon { opacity: 0.2; }
 
 .err-banner { 
   background: rgba(239, 68, 68, 0.05); color: var(--err); padding: 1rem 2rem; 
@@ -494,4 +525,7 @@ onUnmounted(() => {
 }
 
 .mini { padding: 0.5rem 1rem; font-size: 0.85rem; }
+
+.evaluating-placeholder { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding: 4rem 0; color: var(--muted); }
+.loader { opacity: 0.6; }
 </style>

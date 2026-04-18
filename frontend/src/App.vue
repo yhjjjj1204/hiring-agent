@@ -1,6 +1,16 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { marked } from 'marked'
+import { 
+  ChevronLeft, 
+  LogOut, 
+  LayoutDashboard, 
+  FileText, 
+  CheckCircle, 
+  RefreshCw,
+  Loader2,
+  Briefcase
+} from 'lucide-vue-next'
 import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
 import AnalysisResult from './components/AnalysisResult.vue'
@@ -46,7 +56,7 @@ async function runAnalysis() {
   if (requirements.scholarUrl.trim()) fd.append("google_scholar_url", requirements.scholarUrl.trim())
   if (requirements.nameOverride.trim()) fd.append("candidate_name_override", requirements.nameOverride.trim())
 
-  isWorking = true
+  isWorking.value = true
   statusClass.value = ""
   status.value = "Uploading and starting evaluation…"
   errorOutput.value = ""
@@ -202,14 +212,17 @@ function renderMarkdown(text) {
       <div class="header-inner">
         <div class="header-left">
           <h1 class="logo" @click="goHome">
-            <span class="logo-icon">H</span> HiringAgent
+            <span class="logo-icon"><Briefcase :size="16" /></span> HiringAgent
           </h1>
         </div>
         <div v-if="user" class="header-right">
           <div class="user-info">
             <span class="user-name">{{ user.username }}</span>
             <span class="user-role badge">{{ user.role }}</span>
-            <button class="mini secondary" @click="logout">Logout</button>
+            <button class="mini secondary" @click="logout">
+              <LogOut :size="14" />
+              Logout
+            </button>
           </div>
         </div>
       </div>
@@ -226,7 +239,10 @@ function renderMarkdown(text) {
         </div>
         <div v-else class="job-detail-view">
           <div class="job-header-bar">
-            <button class="mini secondary" @click="selectedJob = null">← Jobs</button>
+            <button class="mini secondary" @click="selectedJob = null">
+              <ChevronLeft :size="14" />
+              Back to Jobs
+            </button>
             <h2 class="job-title">{{ selectedJob.title }}</h2>
           </div>
           
@@ -271,7 +287,7 @@ function renderMarkdown(text) {
               <button type="button" @click="runAnalysis" :disabled="isWorking">
                 {{ existingSubmission ? 'Update Submission' : 'Submit Application' }}
               </button>
-              <div v-if="isWorking" class="loader mini-loader"></div>
+              <Loader2 v-if="isWorking" class="loader mini-loader spin" :size="16" />
               <span id="status" :class="statusClass">{{ status }}</span>
             </div>
           </div>
@@ -282,6 +298,8 @@ function renderMarkdown(text) {
               <div class="status-info">
                 <span class="submitted-label">Status</span>
                 <span :class="['status-badge', existingSubmission.status]">
+                  <RefreshCw v-if="existingSubmission.status === 'evaluating'" :size="12" class="spin" />
+                  <CheckCircle v-else :size="12" />
                   {{ existingSubmission.status === 'evaluating' ? 'Evaluating' : 'Submitted' }}
                 </span>
               </div>
@@ -297,7 +315,7 @@ function renderMarkdown(text) {
             </div>
             
             <div v-else-if="isWorking" class="evaluating-card glass-card">
-              <div class="loader"></div>
+              <Loader2 class="loader spin" :size="32" />
               <p>Evaluating submission...</p>
             </div>
           </div>
@@ -350,7 +368,6 @@ function renderMarkdown(text) {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  font-size: 1rem;
 }
 
 .user-info { display: flex; gap: 1rem; align-items: center; }
@@ -413,7 +430,7 @@ function renderMarkdown(text) {
 .status-info { display: flex; align-items: center; gap: 1rem; }
 .submitted-label { font-weight: 700; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
 
-.status-badge { padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; border: 1px solid var(--border); text-transform: uppercase; }
+.status-badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; border: 1px solid var(--border); text-transform: uppercase; }
 .status-badge.evaluating { color: var(--accent); border-color: var(--accent); }
 .status-badge.ready { color: var(--ok); border-color: var(--ok); }
 
@@ -424,15 +441,7 @@ function renderMarkdown(text) {
 
 .evaluating-card { text-align: center; padding: 3rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; color: var(--muted); }
 
-.loader {
-  border: 3px solid var(--border);
-  border-top: 3px solid var(--accent);
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  animation: spin 1s linear infinite;
-}
-.mini-loader { width: 18px; height: 18px; border-width: 2px; }
+.spin { animation: spin 1s linear infinite; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 #errorOut {

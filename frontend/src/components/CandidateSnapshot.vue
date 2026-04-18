@@ -1,4 +1,12 @@
 <script setup>
+import { 
+  User, 
+  GraduationCap, 
+  Briefcase, 
+  Rocket, 
+  Wrench 
+} from 'lucide-vue-next'
+
 const props = defineProps(['arrangedResume'])
 </script>
 
@@ -12,13 +20,19 @@ const props = defineProps(['arrangedResume'])
       
       <!-- Summary -->
       <div v-if="arrangedResume.summary" class="section glass-card inner-card">
-        <h4 class="section-title">Professional Summary</h4>
+        <h4 class="section-title">
+          <User :size="16" class="icon" />
+          Professional Summary
+        </h4>
         <p class="summary-text">{{ arrangedResume.summary }}</p>
       </div>
 
       <!-- Education (Timeline) -->
       <div v-if="arrangedResume.education?.length" class="section glass-card inner-card">
-        <h4 class="section-title">Education</h4>
+        <h4 class="section-title">
+          <GraduationCap :size="16" class="icon" />
+          Education
+        </h4>
         <div class="timeline">
           <div v-for="(edu, idx) in arrangedResume.education" :key="idx" class="timeline-item">
             <div class="timeline-dot"></div>
@@ -39,7 +53,10 @@ const props = defineProps(['arrangedResume'])
 
       <!-- Experience (Timeline) -->
       <div v-if="arrangedResume.experience?.length" class="section glass-card inner-card">
-        <h4 class="section-title">Work Experience</h4>
+        <h4 class="section-title">
+          <Briefcase :size="16" class="icon" />
+          Work Experience
+        </h4>
         <div class="timeline">
           <div v-for="(exp, idx) in arrangedResume.experience" :key="idx" class="timeline-item">
             <div class="timeline-dot"></div>
@@ -63,7 +80,10 @@ const props = defineProps(['arrangedResume'])
 
       <!-- Projects -->
       <div v-if="arrangedResume.projects?.length" class="section glass-card inner-card">
-        <h4 class="section-title">Projects & Research</h4>
+        <h4 class="section-title">
+          <Rocket :size="16" class="icon" />
+          Projects & Research
+        </h4>
         <div class="projects-grid">
           <div v-for="(prj, idx) in arrangedResume.projects" :key="idx" class="prj-card glass-card">
             <div class="prj-header">
@@ -78,7 +98,10 @@ const props = defineProps(['arrangedResume'])
 
       <!-- Skills -->
       <div v-if="arrangedResume.skills?.length" class="section glass-card inner-card">
-        <h4 class="section-title">Technical Skills</h4>
+        <h4 class="section-title">
+          <Wrench :size="16" class="icon" />
+          Technical Skills
+        </h4>
         <div class="skills-flex">
           <div v-for="(sk, idx) in arrangedResume.skills" :key="idx" class="skill-chip">
             <span class="skill-name">{{ sk.name }}</span>
@@ -106,11 +129,15 @@ const props = defineProps(['arrangedResume'])
   padding-bottom: 0.5rem; 
   border-bottom: 1px solid var(--border); 
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
+.icon { color: var(--accent); opacity: 0.9; }
 
 .summary-text { font-size: 0.95rem; line-height: 1.6; opacity: 0.9; }
 

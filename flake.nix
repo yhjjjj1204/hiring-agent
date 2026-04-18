@@ -57,7 +57,7 @@
               pname = "hiring-agent-frontend";
               version = "0.1.0";
               src = ./frontend;
-              npmDepsHash = "sha256-sLyzxzWuNYk+ObSwGhUPuLtJwb3U4MtolnHhz6aEBfc=";
+              npmDepsHash = "sha256-MDHvvTKuidPA+c4h6h4X9YOHilFmUu1xv6qSF7YLkFc=";
               installPhase = ''
                 cp -r dist $out
               '';

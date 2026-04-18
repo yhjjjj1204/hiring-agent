@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { Briefcase, ChevronRight, Check } from 'lucide-vue-next'
 
 const emit = defineEmits(['select-job'])
 
@@ -34,17 +35,26 @@ onMounted(fetchJobs)
       <div v-for="j in jobs" :key="j.id" class="job-card glass-card" @click="emit('select-job', j)">
         <div class="job-card-header">
           <div class="job-card-title-group">
-            <h4>{{ j.title }}</h4>
+            <div class="title-with-icon">
+              <Briefcase :size="16" class="title-icon" />
+              <h4>{{ j.title }}</h4>
+            </div>
             <span class="job-card-date">Posted {{ new Date(j.created_at).toLocaleDateString() }}</span>
           </div>
-          <div v-if="j.submitted" class="status-badge-outline ok">Applied</div>
+          <div v-if="j.submitted" class="status-badge-outline ok submitted-tag">
+            <Check :size="12" />
+            Applied
+          </div>
         </div>
         <div class="job-card-preview">
            {{ j.description.split('\n')[0].substring(0, 120) }}...
         </div>
         <div class="job-card-footer">
           <span class="job-card-type">Full-time</span>
-          <span class="job-card-action">Apply Now →</span>
+          <span class="job-card-action">
+            Apply Now
+            <ChevronRight :size="14" />
+          </span>
         </div>
       </div>
     </div>
@@ -60,5 +70,18 @@ onMounted(fetchJobs)
 <style scoped>
 .job-list-candidate { margin-top: 1rem; animation: fadeIn 0.4s ease-out; }
 
+.title-with-icon { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.2rem; }
+.title-icon { color: var(--accent); opacity: 0.8; }
+.title-with-icon h4 { margin: 0; }
+
+.submitted-tag { display: flex; align-items: center; gap: 0.3rem; }
+
+.job-card-action { display: flex; align-items: center; gap: 0.25rem; }
+
 .empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+.err-msg { color: var(--err); font-weight: 600; margin-top: 2rem; text-align: center; }
+
+@media (max-width: 600px) {
+  .header-group { padding-left: 0; text-align: center; }
+}
 </style>

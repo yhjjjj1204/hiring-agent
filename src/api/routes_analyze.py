@@ -25,6 +25,7 @@ from dashboard.repository import insert_candidate_ranking, update_candidate_rank
 from db.mongo import get_database
 from fairness.injection_sanitize import sanitize_resume_text
 from graph.pipeline import extract_hr_job_spec_from_text
+from services.rankings import trigger_re_evaluation, trigger_re_evaluation_all, get_my_submission as get_my_submission_svc
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
@@ -133,6 +134,7 @@ async def analyze_resume(
     candidate_name_override: str | None = Form(default=None),
     current_user: User = Depends(require_role("candidate")),
 ):
+    from datetime import datetime, timezone
     db = get_database()
     if job_id and not hr_requirement_text and not job_spec_json:
         job = db.jobs.find_one({"id": job_id})
@@ -200,7 +202,6 @@ async def analyze_resume(
     with dest_path.open("wb") as buffer:
         shutil.copyfileobj(resume.file, buffer)
 
-    from datetime import datetime, timezone
     # Start background task
     background_tasks.add_task(
         _background_evaluate_resume,
@@ -217,16 +218,11 @@ async def analyze_resume(
 
 
 @router.get("/my-submission/{job_id}")
-async def get_my_submission(
+async def get_my_submission_endpoint(
     job_id: str,
     current_user: User = Depends(require_role("candidate")),
 ):
-    db = get_database()
-    ranking = db.candidate_rankings.find_one({"candidate_ref": current_user.username, "job_id": job_id})
-    if not ranking:
-        raise HTTPException(status_code=404, detail="No submission found")
-    ranking.pop("_id", None)
-    return ranking
+    return get_my_submission_svc(job_id, current_user)
 
 
 @router.post("/re-evaluate/{ranking_id}")
@@ -235,44 +231,7 @@ async def re_evaluate_resume(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role("recruiter")),
 ):
-    db = get_database()
-    ranking = db.candidate_rankings.find_one({"ranking_id": ranking_id})
-    if not ranking:
-        raise HTTPException(status_code=404, detail="Ranking not found")
-    
-    # Find the resume file
-    files = list(_UPLOAD_DIR.glob(f"{ranking_id}.*"))
-    if not files:
-        raise HTTPException(status_code=404, detail="Resume file not found")
-    resume_path = files[0]
-
-    job_id = ranking.get("job_id")
-    hr_requirement_text = None
-    if job_id:
-        job = db.jobs.find_one({"id": job_id})
-        if job:
-            hr_requirement_text = job.get("description")
-
-    # Update status back to evaluating
-    db.candidate_rankings.update_one(
-        {"ranking_id": ranking_id},
-        {"$set": {"status": "evaluating"}}
-    )
-
-    cinfo = ranking.get("candidate_info") or {}
-
-    background_tasks.add_task(
-        _background_evaluate_resume,
-        ranking_id=ranking_id,
-        resume_path=resume_path,
-        hr_requirement_text=hr_requirement_text,
-        job_spec_json=None,
-        candidate_github=cinfo.get("github"),
-        google_scholar_url=cinfo.get("scholar_url"),
-        candidate_name_override=cinfo.get("name_override"),
-    )
-
-    return {"status": "evaluating"}
+    return await trigger_re_evaluation(ranking_id, current_user, background_tasks)
 
 
 @router.post("/re-evaluate-all/{job_id}")
@@ -281,42 +240,7 @@ async def re_evaluate_all(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(require_role("recruiter")),
 ):
-    db = get_database()
-    job = db.jobs.find_one({"id": job_id})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    hr_requirement_text = job.get("description")
-    
-    rankings = list(db.candidate_rankings.find({"job_id": job_id}))
-    count = 0
-    for r in rankings:
-        ranking_id = r["ranking_id"]
-        files = list(_UPLOAD_DIR.glob(f"{ranking_id}.*"))
-        if not files:
-            continue
-        
-        resume_path = files[0]
-        cinfo = r.get("candidate_info") or {}
-        
-        db.candidate_rankings.update_one(
-            {"ranking_id": ranking_id},
-            {"$set": {"status": "evaluating"}}
-        )
-        
-        background_tasks.add_task(
-            _background_evaluate_resume,
-            ranking_id=ranking_id,
-            resume_path=resume_path,
-            hr_requirement_text=hr_requirement_text,
-            job_spec_json=None,
-            candidate_github=cinfo.get("github"),
-            google_scholar_url=cinfo.get("scholar_url"),
-            candidate_name_override=cinfo.get("name_override"),
-        )
-        count += 1
-        
-    return {"status": "evaluating", "count": count}
+    return await trigger_re_evaluation_all(job_id, current_user, background_tasks)
 
 
 @router.get("/resume/{ranking_id}")

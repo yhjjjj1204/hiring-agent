@@ -99,13 +99,18 @@ function onSelectJob(job) {
   status.value = ''
   isEditingJob.value = false
   isJobExpanded.value = false
-  emit('context-change', { job: job.title, candidate: null })
+  emit('context-change', { job: job.title, job_id: job.id, candidate: null, candidate_id: null })
 }
 
 function selectCandidate(candidate) {
   selectedCandidate.value = candidate
   window.scrollTo({ top: 0, behavior: 'smooth' })
-  emit('context-change', { job: selectedJob.value.title, candidate: candidate.candidate_ref })
+  emit('context-change', { 
+    job: selectedJob.value?.title || 'Unknown', 
+    job_id: selectedJob.value?.id, 
+    candidate: candidate.candidate_ref, 
+    candidate_id: candidate.ranking_id 
+  })
 }
 
 function startEditJob() {
@@ -130,7 +135,7 @@ async function saveJobUpdate() {
       selectedJob.value = data
       isEditingJob.value = false
       jobStatus.value = ''
-      emit('context-change', { job: data.title })
+      emit('context-change', { job: data.title, job_id: data.id })
     } else {
       jobStatus.value = data.detail || 'Update failed'
     }
@@ -152,10 +157,10 @@ function renderMarkdown(text) {
 function reset() {
   selectedJob.value = null
   selectedCandidate.value = null
-  emit('context-change', { job: null, candidate: null })
+  emit('context-change', { job: null, job_id: null, candidate: null, candidate_id: null })
 }
 
-defineExpose({ reset })
+defineExpose({ reset, onSelectJob, selectCandidate })
 
 watch(selectedJob, (newJob) => {
   if (newJob) {
@@ -473,7 +478,7 @@ onUnmounted(() => {
 /* Dimensions and Footer */
 .entry-dimensions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .dim-pill { 
-  background: var(--bg); border: 1px solid var(--border); padding: 0.15rem 0.4rem; 
+  background: var(--bg); border: 1px solid var(--border); padding: 0.2rem 0.5rem; 
   border-radius: 4px; font-size: 0.7rem; display: flex; gap: 0.4rem; 
 }
 .dim-val { color: var(--ok); font-weight: 700; }

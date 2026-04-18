@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
-from typing import Any, List, Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from datetime import datetime
 
 from api.auth_models import User
-from api.deps import require_role, get_current_user_optional
-from db.mongo import get_database
+from api.deps import require_role, get_current_user_optional, get_current_user
+from services.jobs import list_jobs as list_jobs_svc, get_job as get_job_svc, create_job as create_job_svc, update_job as update_job_svc, delete_job as delete_job_svc
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -28,55 +27,20 @@ class Job(BaseModel):
     created_at: datetime
     submitted: bool = False
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
 @router.post("/", response_model=Job)
 def create_job(
     job_in: JobCreate,
     current_user: User = Depends(require_role("recruiter")),
 ):
-    db = get_database()
-    job_id = str(uuid.uuid4())
-    job_doc = {
-        "id": job_id,
-        "title": job_in.title,
-        "description": job_in.description,
-        "created_at": _utcnow(),
-    }
-    db.jobs.insert_one(job_doc)
-    return Job(**job_doc)
+    return create_job_svc(job_in.title, job_in.description, current_user)
 
 @router.get("/", response_model=List[Job])
 def list_jobs(current_user: Optional[User] = Depends(get_current_user_optional)):
-    db = get_database()
-    cur = db.jobs.find().sort("created_at", -1)
-    
-    # Get user's submissions to mark them
-    submitted_job_ids = set()
-    if current_user:
-        submissions = db.candidate_rankings.find({"candidate_ref": current_user.username}, {"job_id": 1})
-        for s in submissions:
-            jid = s.get("job_id")
-            if jid:
-                submitted_job_ids.add(jid)
-
-    jobs = []
-    for doc in cur:
-        doc.pop("_id", None)
-        doc["submitted"] = doc["id"] in submitted_job_ids
-        jobs.append(Job(**doc))
-        
-    return jobs
+    return list_jobs_svc(current_user)
 
 @router.get("/{job_id}", response_model=Job)
 def get_job(job_id: str):
-    db = get_database()
-    doc = db.jobs.find_one({"id": job_id})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Job not found")
-    doc.pop("_id", None)
-    return Job(**doc)
+    return get_job_svc(job_id)
 
 @router.patch("/{job_id}", response_model=Job)
 def update_job(
@@ -84,28 +48,12 @@ def update_job(
     job_in: JobUpdate,
     current_user: User = Depends(require_role("recruiter")),
 ):
-    db = get_database()
-    update_data = {k: v for k, v in job_in.model_dump().items() if v is not None}
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    
-    res = db.jobs.find_one_and_update(
-        {"id": job_id},
-        {"$set": update_data},
-        return_document=True
-    )
-    if not res:
-        raise HTTPException(status_code=404, detail="Job not found")
-    res.pop("_id", None)
-    return Job(**res)
+    return update_job_svc(job_id, job_in.title, job_in.description, current_user)
 
 @router.delete("/{job_id}")
 def delete_job(
     job_id: str,
     current_user: User = Depends(require_role("recruiter")),
 ):
-    db = get_database()
-    res = db.jobs.delete_one({"id": job_id})
-    if res.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Job not found")
+    delete_job_svc(job_id, current_user)
     return {"status": "deleted"}

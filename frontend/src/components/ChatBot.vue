@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
-import { MessageSquare, X, Send, Trash2, Bot, User } from 'lucide-vue-next'
+import { MessageSquare, X, Send, Trash2, Bot, User, Minus, Maximize2, Minimize2 } from 'lucide-vue-next'
+import { marked } from 'marked'
+import ChatCard from './ChatCard.vue'
 
 const props = defineProps({
   context: {
@@ -13,23 +15,64 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['navigate'])
+
 const isOpen = ref(false)
+const isFullScreen = ref(false)
 const message = ref('')
 const history = ref([])
 const isTyping = ref(false)
 const scrollRef = ref(null)
 
-// Refined context for UI display and backend
+// Refined context for backend
 const filteredContext = computed(() => {
   const ctx = { ...props.context }
-  delete ctx.role
-  if (ctx.status === 'ready') delete ctx.status
-  
-  // Filter out empty/null values
   return Object.fromEntries(
     Object.entries(ctx).filter(([_, v]) => v != null && v !== '')
   )
 })
+
+// Context for UI display
+const displayContext = computed(() => {
+  const ctx = { ...filteredContext.value }
+  delete ctx.role
+  if (ctx.status === 'ready') delete ctx.status
+  return Object.fromEntries(
+    Object.entries(ctx).filter(([k, _]) => !k.endsWith('_id'))
+  )
+})
+
+/**
+ * Parses message content for [[TYPE:ID]] markers.
+ * Trims text segments to avoid phantom gaps.
+ */
+function parseSegments(content) {
+  if (!content) return []
+  const segments = []
+  const regex = /\[\[(JOB|CANDIDATE):([\w-]+)\]\]/g
+  let lastIndex = 0
+  let match
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      const text = content.substring(lastIndex, match.index)
+      if (text.trim()) {
+        segments.push({ type: 'text', content: text.trim() })
+      }
+    }
+    segments.push({ type: 'card', cardType: match[1], id: match[2] })
+    lastIndex = regex.lastIndex
+  }
+
+  if (lastIndex < content.length) {
+    const remaining = content.substring(lastIndex)
+    if (remaining.trim()) {
+      segments.push({ type: 'text', content: remaining.trim() })
+    }
+  }
+
+  return segments.length > 0 ? segments : [{ type: 'text', content }]
+}
 
 async function loadHistory() {
   try {
@@ -42,7 +85,6 @@ async function loadHistory() {
       if (data && data.length > 0) {
         history.value = data
       } else {
-        // Initial welcome message if history is empty
         history.value = [{
           role: 'assistant',
           content: `Hello ${props.user.username}! I'm your AI hiring assistant. I have access to the current page context to help you better. How can I assist you today?`,
@@ -140,20 +182,31 @@ function toggleChat() {
   if (isOpen.value) scrollToBottom()
 }
 
+function toggleFullScreen() {
+  isFullScreen.value = !isFullScreen.value
+}
+
+function renderMarkdown(text) {
+  if (!text) return ''
+  return marked.parse(text)
+}
+
+function onCardNavigate(payload) {
+  emit('navigate', payload)
+}
+
 onMounted(() => {
   loadHistory()
 })
 </script>
 
 <template>
-  <div class="chatbot-wrapper" :class="{ 'is-open': isOpen }">
-    <!-- Floating Button -->
+  <div class="chatbot-wrapper" :class="{ 'is-open': isOpen, 'full-screen-mode': isFullScreen }">
     <button class="chat-toggle glass-card" @click="toggleChat" v-if="!isOpen">
       <MessageSquare :size="24" />
     </button>
 
-    <!-- Chat Window -->
-    <div class="chat-window glass-card" v-if="isOpen">
+    <div :class="['chat-window', 'glass-card', { 'full-screen': isFullScreen }]" v-if="isOpen">
       <header class="chat-header">
         <div class="header-info">
           <Bot :size="18" class="bot-icon" />
@@ -161,29 +214,51 @@ onMounted(() => {
         </div>
         <div class="header-actions">
           <button class="mini-icon" title="Clear History" @click="clearChat"><Trash2 :size="16" /></button>
+          <button class="mini-icon" :title="isFullScreen ? 'Exit Fullscreen' : 'Fullscreen'" @click="toggleFullScreen">
+            <Minimize2 v-if="isFullScreen" :size="16" />
+            <Maximize2 v-else :size="16" />
+          </button>
           <button class="mini-icon" title="Close" @click="isOpen = false"><X :size="16" /></button>
         </div>
       </header>
 
       <div class="chat-messages" ref="scrollRef">
-        <div v-for="(msg, idx) in history" :key="idx" :class="['message-wrap', msg.role]">
-          <div class="message-icon">
-            <User v-if="msg.role === 'user'" :size="16" />
-            <Bot v-else :size="16" />
+        <div v-for="(msg, idx) in history" :key="idx" :class="['message-group', msg.role]">
+          <div class="sender-header">
+            <Bot v-if="msg.role === 'assistant'" :size="14" class="header-icon" />
+            <span class="sender-label">{{ msg.role === 'user' ? 'You' : 'AI Assistant' }}</span>
+            <User v-if="msg.role === 'user'" :size="14" class="header-icon" />
           </div>
-          <div class="message-content">{{ msg.content }}</div>
+          <div :class="['message-bubble', msg.role]">
+            <div v-if="msg.role === 'user'" class="message-content user-msg">{{ msg.content }}</div>
+            <div v-else class="message-content multi-segment">
+              <template v-for="(seg, sIdx) in parseSegments(msg.content)" :key="sIdx">
+                <div v-if="seg.type === 'text'" class="markdown-body chat-md" v-html="renderMarkdown(seg.content)"></div>
+                <ChatCard 
+                  v-else-if="seg.type === 'card'" 
+                  :type="seg.cardType" 
+                  :id="seg.id" 
+                  @navigate="onCardNavigate" 
+                />
+              </template>
+            </div>
+          </div>
         </div>
-        <div v-if="isTyping" class="message-wrap assistant">
-          <div class="message-icon"><Bot :size="16" /></div>
-          <div class="message-content typing">...</div>
+        <div v-if="isTyping" class="message-group assistant">
+          <div class="sender-header">
+            <Bot :size="14" class="header-icon" />
+            <span class="sender-label">AI Assistant</span>
+          </div>
+          <div class="message-bubble assistant">
+            <div class="message-content typing">...</div>
+          </div>
         </div>
       </div>
 
-      <!-- Clean Context Footer -->
-      <div class="chat-context-footer" v-if="Object.keys(filteredContext).length">
+      <div class="chat-context-footer" v-if="Object.keys(displayContext).length">
         <div class="context-label">Current Context:</div>
         <div class="context-chips">
-          <span v-for="(val, key) in filteredContext" :key="key" class="chip">
+          <span v-for="(val, key) in displayContext" :key="key" class="chip">
             {{ key }}: {{ val }}
           </span>
         </div>
@@ -200,154 +275,79 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.chatbot-wrapper {
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  z-index: 1000;
-}
+.chatbot-wrapper { position: fixed; bottom: 2rem; right: 2rem; z-index: 1000; }
 
 .chat-toggle {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  border: none;
-  transition: all 0.2s ease;
+  width: 56px; height: 56px; border-radius: 50%; background: var(--accent);
+  color: white; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border: none; transition: all 0.2s ease;
 }
-.chat-toggle:hover {
-  transform: translateY(-2px);
-  background: #2563eb;
-}
+.chat-toggle:hover { transform: translateY(-2px); background: #2563eb; }
 
 .chat-window {
-  width: 380px;
-  height: 520px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #1e293b;
-  border: 1px solid var(--border);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  width: 380px; height: 520px; display: flex; flex-direction: column;
+  overflow: hidden; background: #1e293b; border: 1px solid var(--border); box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-window.full-screen {
+  position: fixed; top: 1rem; left: 1rem; right: 1rem; bottom: 1rem;
+  width: calc(100vw - 2rem); height: calc(100vh - 2rem); z-index: 1001;
 }
 
 .chat-header {
-  padding: 0.75rem 1rem;
-  background: #0f172a;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  padding: 0.6rem 1rem; background: #0f172a; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
 }
 .header-info { display: flex; align-items: center; gap: 0.6rem; }
 .bot-icon { color: var(--accent); }
-.header-actions { display: flex; gap: 0.5rem; }
+.header-actions { display: flex; gap: 0.4rem; }
 .mini-icon {
-  background: transparent;
-  padding: 4px;
-  border-radius: 4px;
-  color: var(--muted);
-  cursor: pointer;
-  border: none;
+  background: transparent; padding: 4px; border-radius: 4px;
+  color: var(--muted); cursor: pointer; border: none;
 }
 .mini-icon:hover { background: rgba(255,255,255,0.05); color: white; }
 
 .chat-messages {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+  flex-grow: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1.25rem;
 }
 
-.message-wrap {
-  display: flex;
-  gap: 0.8rem;
-  max-width: 90%;
-}
-.message-wrap.user {
-  align-self: flex-end;
-  flex-direction: row-reverse;
-}
-.message-wrap.user .message-content {
-  background: var(--accent);
-  color: white;
-  border-radius: 6px 6px 0 6px;
-}
-.message-wrap.assistant .message-content {
-  background: #0f172a;
-  border: 1px solid var(--border);
-  border-radius: 6px 6px 6px 0;
-}
+.message-group { display: flex; flex-direction: column; gap: 0.25rem; max-width: 85%; }
+.full-screen .message-group { max-width: 70%; }
+.message-group.user { align-self: flex-end; align-items: flex-end; }
+.message-group.assistant { align-self: flex-start; align-items: flex-start; }
 
-.message-icon {
-  width: 32px;
-  height: 32px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 2px;
-  color: var(--muted);
-}
-.user .message-icon { color: var(--accent); border-color: var(--accent); }
+.sender-header { display: flex; align-items: center; gap: 0.4rem; }
+.sender-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.user .sender-label { color: var(--accent); }
+.header-icon { opacity: 0.7; }
+.assistant .header-icon { color: var(--muted); }
+.user .header-icon { color: var(--accent); }
 
-.message-content {
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
+.message-bubble { padding: 0.6rem 0.9rem; border-radius: 4px; font-size: 0.9rem; line-height: 1.5; }
+.message-bubble.user { background: var(--accent); color: white; border-radius: 8px 0 8px 8px; }
+.message-bubble.assistant { background: #0f172a; border: 1px solid var(--border); border-radius: 0 8px 8px 8px; }
 
-.chat-context-footer {
-  padding: 0.5rem 1rem;
-  background: #0f172a;
-  border-top: 1px solid var(--border);
-  font-size: 0.7rem;
-}
-.context-label { font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 0.6rem; margin-bottom: 0.2rem; }
+.user-msg { white-space: pre-wrap; }
+.message-content { word-break: break-word; }
+
+/* Eliminate large markdown gaps */
+.chat-md :deep(p) { margin: 0 0 0.4rem 0; }
+.chat-md :deep(p:last-child) { margin-bottom: 0; }
+.chat-md :deep(ul), .chat-md :deep(ol) { padding-left: 1.1rem; margin: 0 0 0.4rem 0; }
+.chat-md :deep(li) { margin-bottom: 0.2rem; }
+.chat-md :deep(strong) { color: #fff; }
+
+.multi-segment { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.chat-context-footer { padding: 0.4rem 1rem; background: #0f172a; border-top: 1px solid var(--border); font-size: 0.7rem; }
+.context-label { font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 0.6rem; margin-bottom: 0.15rem; }
 .context-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.chip { 
-  background: var(--bg-subtle); 
-  border: 1px solid var(--border); 
-  padding: 1px 4px; 
-  border-radius: 2px; 
-  color: var(--text);
-  font-weight: 600;
-}
+.chip { background: var(--bg-subtle); border: 1px solid var(--border); padding: 1px 4px; border-radius: 2px; color: var(--text); font-weight: 600; }
 
-.chat-input {
-  padding: 0.75rem 1rem;
-  background: #0f172a;
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 0.5rem;
-}
-.chat-input input {
-  flex-grow: 1;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  padding: 0.45rem 0.75rem;
-  border-radius: 4px;
-  color: white;
-  font-size: 0.9rem;
-}
-.chat-input button {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  flex-shrink: 0;
-}
+.chat-input { padding: 0.75rem 1rem; background: #0f172a; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; }
+.chat-input input { flex-grow: 1; background: var(--bg); border: 1px solid var(--border); padding: 0.5rem 0.75rem; border-radius: 4px; color: white; font-size: 0.9rem; }
+.chat-input button { width: 36px; height: 36px; padding: 0; flex-shrink: 0; }
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

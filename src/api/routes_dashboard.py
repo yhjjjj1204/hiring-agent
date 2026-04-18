@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Query, Depends
-from api.deps import require_role
+from fastapi import APIRouter, Query, Depends, HTTPException
+from api.deps import require_role, get_current_user
 from api.auth_models import User
-
-from dashboard.repository import list_rankings
+from services.rankings import list_candidate_rankings
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -16,13 +15,33 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("/rankings")
 def get_rankings(
     limit: int = Query(30, ge=1, le=200),
-    sort: str = Query("overall_score", description="overall_score | created_at"),
+    sort: str = Query("overall_score", description="overall_score | submitted_at"),
     job_id: str | None = Query(None),
     current_user: User = Depends(require_role("recruiter")),
 ):
-    """Candidate ranking list (default sort: overall_score descending)."""
-    rows = list_rankings(limit=limit, sort_by=sort, job_id=job_id)
+    """Candidate ranking list."""
+    rows = list_candidate_rankings(current_user, job_id=job_id, limit=limit, sort_by=sort)
     return {"count": len(rows), "sort": sort, "items": rows}
+
+
+@router.get("/ranking/{ranking_id}")
+def get_ranking(
+    ranking_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get a single ranking by its ID. Recruiters can see all, candidates only their own."""
+    from db.mongo import get_database
+    db = get_database()
+    doc = db.candidate_rankings.find_one({"ranking_id": ranking_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Ranking not found")
+    
+    # Permission check: if candidate, must be their own
+    if current_user.role == "candidate" and doc["candidate_ref"] != current_user.username:
+        raise HTTPException(status_code=403, detail="Access denied to this ranking")
+        
+    doc.pop("_id", None)
+    return doc
 
 
 @router.get("/rankings/matrix")
@@ -30,40 +49,25 @@ def get_rankings_matrix(
     limit: int = Query(30, ge=1, le=100),
     current_user: User = Depends(require_role("recruiter")),
 ):
-    """
-    Per-candidate dimension score matrix for heatmaps or radar charts.
-    Rows: candidate_ref; columns: dimension name -> score.
-    """
-    rows = list_rankings(limit=limit, sort_by="overall_score")
-    dim_names: list[str] = []
-    for r in rows:
-        for d in r.get("dimensions") or []:
-            if isinstance(d, dict) and d.get("name"):
-                n = str(d["name"])
-                if n not in dim_names:
-                    dim_names.append(n)
+    """Optional pivot matrix of candidates x dimensions."""
+    rows = list_candidate_rankings(current_user, limit=limit)
+    if not rows:
+        return {"dimension_names": [], "rows": []}
 
-    matrix: list[dict[str, Any]] = []
+    dim_names = sorted({d["name"] for r in rows for d in r.get("dimensions", [])})
+
+    matrix = []
     for r in rows:
-        vec: dict[str, float] = {n: 0.0 for n in dim_names}
-        for d in r.get("dimensions") or []:
-            if isinstance(d, dict) and d.get("name") in vec:
-                try:
-                    vec[str(d["name"])] = float(d.get("score", 0))
-                except (TypeError, ValueError):
-                    pass
+        d_map = {d["name"]: d["score"] for d in r.get("dimensions", [])}
         matrix.append(
             {
-                "candidate_ref": r.get("candidate_ref"),
-                "ranking_id": r.get("ranking_id"),
-                "overall_score": r.get("overall_score"),
-                "thread_id": r.get("thread_id"),
-                "dimensions": vec,
-                "summary": r.get("summary"),
-                "created_at": (
-                    r["created_at"].isoformat()
-                    if hasattr(r.get("created_at"), "isoformat")
-                    else r.get("created_at")
+                "candidate_ref": r["candidate_ref"],
+                "overall_score": r["overall_score"],
+                "scores": [d_map.get(name) for name in dim_names],
+                "submitted_at": (
+                    r["submitted_at"].isoformat()
+                    if hasattr(r.get("submitted_at"), "isoformat")
+                    else r.get("submitted_at")
                 ),
             },
         )

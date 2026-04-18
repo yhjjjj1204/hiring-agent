@@ -94,7 +94,7 @@ async function runAnalysis() {
 }
 
 async function fetchMySubmission() {
-  if (!selectedJob.value) return
+  if (!selectedJob.value || !user.value || user.value.role !== 'candidate') return
   
   const token = localStorage.getItem('token')
   try {
@@ -176,7 +176,15 @@ function selectJob(job) {
   requirements.github = ''
   requirements.scholarUrl = ''
   requirements.nameOverride = ''
-  fetchMySubmission()
+  
+  if (user.value?.role === 'candidate') {
+    fetchMySubmission()
+  }
+  
+  // Hard reset recruiter component state if active
+  if (recruiterDashboardRef.value) {
+    recruiterDashboardRef.value.selectedCandidate = null
+  }
 }
 
 function goHome() {
@@ -212,7 +220,10 @@ const currentContext = ref({})
 watch([user, selectedJob, existingSubmission], () => {
   const ctx = {}
   if (user.value) ctx.role = user.value.role
-  if (selectedJob.value) ctx.job = selectedJob.value.title
+  if (selectedJob.value) {
+    ctx.job = selectedJob.value.title
+    ctx.job_id = selectedJob.value.id
+  }
   if (existingSubmission.value) ctx.status = existingSubmission.value.status
   currentContext.value = ctx
 }, { deep: true })
@@ -220,6 +231,40 @@ watch([user, selectedJob, existingSubmission], () => {
 // Special handling for recruiter candidate selection
 function onRecruiterContextChange(newCtx) {
   currentContext.value = { ...currentContext.value, ...newCtx }
+}
+
+async function handleNavigateFromChat(payload) {
+  if (payload.type === 'JOB') {
+    if (user.value.role === 'recruiter') {
+       // Switch recruiter dashboard to this job
+       if (recruiterDashboardRef.value) {
+         recruiterDashboardRef.value.onSelectJob(payload.data)
+       }
+    } else {
+       // Regular candidate navigation
+       selectJob(payload.data)
+    }
+  } else if (payload.type === 'CANDIDATE') {
+    if (user.value.role === 'recruiter') {
+      const token = localStorage.getItem('token')
+      const jobRes = await fetch(`/jobs/${payload.data.job_id}`, {
+         headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (jobRes.ok) {
+        const jobData = await jobRes.json()
+        // 1. First switch the job view
+        if (recruiterDashboardRef.value) {
+          recruiterDashboardRef.value.onSelectJob(jobData)
+          // 2. Then select the specific candidate
+          setTimeout(() => {
+            if (recruiterDashboardRef.value) {
+               recruiterDashboardRef.value.selectCandidate(payload.data)
+            }
+          }, 50)
+        }
+      }
+    }
+  }
 }
 </script>
 
@@ -342,11 +387,19 @@ function onRecruiterContextChange(newCtx) {
       </div>
 
       <div v-else-if="user.role === 'recruiter'">
-        <RecruiterDashboard ref="recruiterDashboardRef" @context-change="onRecruiterContextChange" />
+        <RecruiterDashboard 
+          ref="recruiterDashboardRef" 
+          @context-change="onRecruiterContextChange" 
+        />
       </div>
     </main>
 
-    <ChatBot v-if="user" :user="user" :context="currentContext" />
+    <ChatBot 
+      v-if="user" 
+      :user="user" 
+      :context="currentContext" 
+      @navigate="handleNavigateFromChat"
+    />
   </div>
 </template>
 
@@ -461,7 +514,7 @@ function onRecruiterContextChange(newCtx) {
 .evaluating-card { text-align: center; padding: 3rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; color: var(--muted); }
 
 .spin { animation: spin 1s linear infinite; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 #errorOut {
   margin-top: 1.25rem;

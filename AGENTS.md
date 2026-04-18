@@ -1,0 +1,48 @@
+# Hiring Agent Project: Agent Overview
+
+This project implements an AI-driven hiring pipeline designed to streamline candidate evaluation while maintaining fairness and providing deep insights.
+
+## Core Agents
+
+### 1. HR Strategy Agent (`agents/hr_strategy`)
+- **Role**: Requirements Definition & Refinement.
+- **Mechanism**: A conversational agent built with **LangGraph**.
+- **Function**: Engages in a dialogue with HR to understand the nuances of a role. It uses tools to finalize a structured `HRJobSpec` that includes required skills, bonus items, and culture-fit metrics.
+
+### 2. Data Arrangement Agent (`agents/data_arrangement`)
+- **Role**: Resume Structuring.
+- **Mechanism**: LLM-based semantic parsing (GPT-4o-mini).
+- **Function**: Takes raw OCR text from resumes and transforms it into a highly structured `ResumeStructuredProfile`. It includes built-in truncation and sanitization.
+
+### 3. Background Analysis Agent (`agents/background_analysis`)
+- **Role**: External Validation & Capability Mapping.
+- **Mechanism**: Multi-source API orchestration (GitHub, OpenAlex, Semantic Scholar).
+- **Function**: Generates a **Capability Overview Graph**. It calculates indices for code activity and academic impact, providing a visual and data-driven summary of a candidate's professional footprint.
+
+### 4. Scoring Agent (`agents/scoring`)
+- **Role**: Automated Matching & Evaluation.
+- **Mechanism**: Structured LLM evaluation.
+- **Function**: Performs a "Blind Match" by comparing the `HRJobSpec`, structured resume, and background analysis. It outputs a `Scorecard` with detailed scores and rationales.
+
+## Support Modules
+
+### Fairness & Privacy (`fairness/`)
+- **Blind Screening**: Automatically redacts PII (Names, Emails, Photos, Genders) from profiles before they reach the Scoring Agent to minimize unconscious bias.
+- **Injection Sanitization**: Protects the pipeline from prompt injection attacks hidden within resume text.
+
+### Monitoring & Observability (`monitoring/`)
+- **Agent Registry**: Tracks the execution status (`running`, `completed`, `failed`) and the path taken by candidates through the multi-agent pipeline.
+- **SSE Support**: Provides real-time updates to the dashboard via Server-Sent Events.
+
+## Project Structure
+- `src/`: Core Python package containing all agents and logic.
+- `src/agents/`: Individual agent implementations.
+- `src/api/`: FastAPI-based REST endpoints.
+- `src/graph/`: Workflow and pipeline definitions.
+- `frontend/`: Single-page UI for interacting with the hiring pipeline.
+
+## LLM Interaction & Engineering Guidelines
+
+1. **Commit Protocol**: When a major functionality or feature is added, the LLM must prompt the user to commit the changes to version control.
+2. **Standard Language**: All code comments and documentation MUST be written in **English**, even if the user provides prompts in other languages (e.g., Chinese).
+3. **Architectural Integrity**: Maintain clean, organized code. Before implementing changes, consider the entire system architecture. Avoid "patch-like" fixes; instead, act as a lead **Architectural Engineer** to ensure changes are seamless, idiomatic, and maintainable.

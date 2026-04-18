@@ -90,6 +90,7 @@ def list_rankings(
     limit: int = 50,
     sort_by: str = "overall_score",
     job_id: str | None = None,
+    candidate_ref: str | None = None,
     db: Database[Any] | None = None,
 ) -> list[dict[str, Any]]:
     d = db or get_database()
@@ -97,6 +98,8 @@ def list_rankings(
     query = {}
     if job_id:
         query["job_id"] = job_id
+    if candidate_ref:
+        query["candidate_ref"] = candidate_ref
     
     sort_field = sort_by if sort_by in ("overall_score", "submitted_at", "created_at") else "overall_score"
     # If sorting by score, we probably want descending, but submitted_at might be ascending or descending.

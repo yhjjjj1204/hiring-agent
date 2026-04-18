@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from api.auth_models import User
-from api.deps import require_role
+from api.deps import require_role, get_current_user_optional
 from db.mongo import get_database
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -26,6 +26,7 @@ class Job(BaseModel):
     title: str
     description: str
     created_at: datetime
+    submitted: bool = False
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -47,13 +48,25 @@ def create_job(
     return Job(**job_doc)
 
 @router.get("/", response_model=List[Job])
-def list_jobs():
+def list_jobs(current_user: Optional[User] = Depends(get_current_user_optional)):
     db = get_database()
     cur = db.jobs.find().sort("created_at", -1)
+    
+    # Get user's submissions to mark them
+    submitted_job_ids = set()
+    if current_user:
+        submissions = db.candidate_rankings.find({"candidate_ref": current_user.username}, {"job_id": 1})
+        for s in submissions:
+            jid = s.get("job_id")
+            if jid:
+                submitted_job_ids.add(jid)
+
     jobs = []
     for doc in cur:
         doc.pop("_id", None)
+        doc["submitted"] = doc["id"] in submitted_job_ids
         jobs.append(Job(**doc))
+        
     return jobs
 
 @router.get("/{job_id}", response_model=Job)

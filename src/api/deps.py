@@ -42,6 +42,12 @@ def get_current_user(request: Request) -> User:
     
     return User(username=user_db.username, role=user_db.role)
 
+def get_current_user_optional(request: Request) -> User | None:
+    try:
+        return get_current_user(request)
+    except HTTPException:
+        return None
+
 def require_role(role: str):
     def role_checker(current_user: User = Depends(get_current_user)):
         if current_user.role != role:

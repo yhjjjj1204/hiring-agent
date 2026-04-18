@@ -133,8 +133,8 @@ async def analyze_resume(
     candidate_name_override: str | None = Form(default=None),
     current_user: User = Depends(require_role("candidate")),
 ):
+    db = get_database()
     if job_id and not hr_requirement_text and not job_spec_json:
-        db = get_database()
         job = db.jobs.find_one({"id": job_id})
         if job:
             hr_requirement_text = job.get("description")
@@ -147,28 +147,60 @@ async def analyze_resume(
             detail=f"Unsupported file type {suffix or '(no extension)'}; allowed: {_ALLOWED_EXT_HELP}",
         )
 
-    ranking_id = str(uuid.uuid4())
+    # Check for existing submission to rewrite
+    existing = None
+    if job_id:
+        existing = db.candidate_rankings.find_one({"candidate_ref": current_user.username, "job_id": job_id})
     
-    # Create initial entry
-    insert_candidate_ranking(
-        ranking_id=ranking_id,
-        candidate_ref=current_user.username,
-        thread_id=None,
-        job_id=job_id,
-        candidate_info={
-            "github": candidate_github,
-            "scholar_url": google_scholar_url,
-            "name_override": candidate_name_override,
-            "filename": raw_name
-        },
-        status="evaluating"
-    )
+    if existing:
+        ranking_id = existing["ranking_id"]
+        # Delete old file(s)
+        for old_file in _UPLOAD_DIR.glob(f"{ranking_id}.*"):
+            try: os.unlink(old_file)
+            except: pass
+        
+        # Reset entry
+        db.candidate_rankings.update_one(
+            {"ranking_id": ranking_id},
+            {"$set": {
+                "status": "evaluating",
+                "overall_score": 0.0,
+                "dimensions": [],
+                "summary": "",
+                "scorecard_snapshot": None,
+                "arranged_resume": None,
+                "candidate_info": {
+                    "github": candidate_github,
+                    "scholar_url": google_scholar_url,
+                    "name_override": candidate_name_override,
+                    "filename": raw_name
+                },
+                "evaluated_at": None,
+                "submitted_at": datetime.now(timezone.utc)
+            }}
+        )
+    else:
+        ranking_id = str(uuid.uuid4())
+        insert_candidate_ranking(
+            ranking_id=ranking_id,
+            candidate_ref=current_user.username,
+            thread_id=None,
+            job_id=job_id,
+            candidate_info={
+                "github": candidate_github,
+                "scholar_url": google_scholar_url,
+                "name_override": candidate_name_override,
+                "filename": raw_name
+            },
+            status="evaluating"
+        )
 
-    # Save resume file permanently
+    # Save resume file
     dest_path = _UPLOAD_DIR / f"{ranking_id}{suffix}"
     with dest_path.open("wb") as buffer:
         shutil.copyfileobj(resume.file, buffer)
 
+    from datetime import datetime, timezone
     # Start background task
     background_tasks.add_task(
         _background_evaluate_resume,
@@ -182,6 +214,19 @@ async def analyze_resume(
     )
 
     return AnalyzeResumeResponse(ranking_id=ranking_id, status="evaluating")
+
+
+@router.get("/my-submission/{job_id}")
+async def get_my_submission(
+    job_id: str,
+    current_user: User = Depends(require_role("candidate")),
+):
+    db = get_database()
+    ranking = db.candidate_rankings.find_one({"candidate_ref": current_user.username, "job_id": job_id})
+    if not ranking:
+        raise HTTPException(status_code=404, detail="No submission found")
+    ranking.pop("_id", None)
+    return ranking
 
 
 @router.post("/re-evaluate/{ranking_id}")

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { marked } from 'marked'
 import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
@@ -27,6 +27,9 @@ const errorOutput = ref('')
 // Candidate analysis tracking
 const currentRankingId = ref(null)
 const currentArrangedResume = ref(null)
+const existingSubmission = ref(null)
+const showReSubmitForm = ref(false)
+const isJobExpanded = ref(false)
 let candidatePollInterval = null
 
 async function runAnalysis() {
@@ -47,7 +50,6 @@ async function runAnalysis() {
   statusClass.value = ""
   status.value = "Uploading and starting evaluation…"
   errorOutput.value = ""
-  currentRankingId.value = null
   currentArrangedResume.value = null
 
   const token = localStorage.getItem('token')
@@ -69,15 +71,50 @@ async function runAnalysis() {
     }
     
     currentRankingId.value = data.ranking_id
-    status.value = "Resume uploaded! AI agents are summarizing your data..."
+    status.value = "Application submitted! AI agents are summarizing your data..."
     statusClass.value = "ok"
     
-    // Start polling for the structured result
+    // Start polling
     startPollingCandidateStatus()
   } catch (e) {
     status.value = "Request failed: " + (e && e.message ? e.message : String(e))
     statusClass.value = "err"
     isWorking.value = false
+  }
+}
+
+async function fetchMySubmission() {
+  if (!selectedJob.value) return
+  
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`/analyze/my-submission/${selectedJob.value.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      existingSubmission.value = data
+      currentRankingId.value = data.ranking_id
+      currentArrangedResume.value = data.arranged_resume
+      
+      // Pre-fill fields for re-submission
+      if (data.candidate_info) {
+        requirements.github = data.candidate_info.github || ''
+        requirements.scholarUrl = data.candidate_info.scholar_url || ''
+        requirements.nameOverride = data.candidate_info.name_override || ''
+      }
+
+      if (data.status === 'evaluating') {
+        isWorking.value = true
+        startPollingCandidateStatus()
+      }
+    } else {
+      existingSubmission.value = null
+      currentRankingId.value = null
+      currentArrangedResume.value = null
+    }
+  } catch (e) {
+    console.error("Failed to fetch submission", e)
   }
 }
 
@@ -88,21 +125,19 @@ async function startPollingCandidateStatus() {
   
   candidatePollInterval = setInterval(async () => {
     try {
-      // We'll use the recruiter-oriented rankings endpoint but filtered by our ID
-      // Actually, let's just fetch from dashboard/rankings?job_id=... and find ours
-      // In a real app we'd have a specific /analyze/status/{id} endpoint
-      const res = await fetch(`/dashboard/rankings?job_id=${selectedJob.value.id}`, {
+      const res = await fetch(`/analyze/my-submission/${selectedJob.value.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
       if (res.ok) {
-        const myRank = data.items.find(r => r.ranking_id === currentRankingId.value)
-        if (myRank && myRank.status === 'ready') {
-          currentArrangedResume.value = myRank.arranged_resume
-          status.value = "Evaluation complete! Here is your objective resume summary."
+        if (data.status === 'ready') {
+          currentArrangedResume.value = data.arranged_resume
+          existingSubmission.value = data
+          status.value = "Update complete! Here is your objective resume summary."
           clearInterval(candidatePollInterval)
           candidatePollInterval = null
           isWorking.value = false
+          showReSubmitForm.value = false
         }
       }
     } catch (e) {
@@ -127,6 +162,12 @@ function selectJob(job) {
   selectedJob.value = job
   currentArrangedResume.value = null
   currentRankingId.value = null
+  existingSubmission.value = null
+  showReSubmitForm.value = false
+  requirements.github = ''
+  requirements.scholarUrl = ''
+  requirements.nameOverride = ''
+  fetchMySubmission()
 }
 
 function goHome() {
@@ -178,15 +219,26 @@ function renderMarkdown(text) {
       <div v-else>
         <div class="job-header">
           <h2>Applying for: {{ selectedJob.title }}</h2>
-          <button class="mini" @click="selectedJob = null">Change Job</button>
+          <button class="mini" @click="selectedJob = null">← Back</button>
         </div>
         
         <div class="job-desc-readonly">
           <label>Job Description</label>
-          <div class="desc-content markdown-body" v-html="renderMarkdown(selectedJob.description)"></div>
+          <div :class="['description-content', { 'expanded': isJobExpanded || (!existingSubmission || showReSubmitForm) }]">
+            <div class="markdown-body" v-html="renderMarkdown(selectedJob.description)"></div>
+          </div>
+          <button v-if="existingSubmission && !showReSubmitForm" class="text-btn" @click="isJobExpanded = !isJobExpanded">
+            {{ isJobExpanded ? 'Show Less' : 'Show More' }}
+          </button>
         </div>
 
-        <div v-if="!currentArrangedResume">
+        <!-- NEW SUBMISSION OR RE-SUBMISSION FORM -->
+        <div v-if="!existingSubmission || showReSubmitForm">
+          <div class="section-title">
+            <h3>{{ existingSubmission ? 'Re-submit Application' : 'Upload your resume' }}</h3>
+            <button v-if="existingSubmission" class="text-btn" @click="showReSubmitForm = false">Cancel</button>
+          </div>
+
           <ResumeUpload v-model="file" />
           
           <div class="background-inputs">
@@ -206,22 +258,40 @@ function renderMarkdown(text) {
           </div>
 
           <div class="actions">
-            <button type="button" @click="runAnalysis" :disabled="isWorking">Submit Application</button>
+            <button type="button" @click="runAnalysis" :disabled="isWorking">
+              {{ existingSubmission ? 'Update Submission' : 'Submit Application' }}
+            </button>
             <div v-if="isWorking" class="loader mini-loader"></div>
             <span id="status" :class="statusClass">{{ status }}</span>
           </div>
         </div>
 
-        <div v-if="currentArrangedResume" class="summary-view">
-          <div class="success-banner">
-            <h3>Application Submitted!</h3>
-            <p>{{ status }}</p>
+        <!-- VIEW EXISTING SUBMISSION -->
+        <div v-else class="submission-view">
+          <div class="submission-header">
+            <div class="status-info">
+              <span class="submitted-label">Application Status:</span>
+              <span :class="['status-badge', existingSubmission.status]">
+                {{ existingSubmission.status === 'evaluating' ? 'LLM Evaluating...' : 'Submitted' }}
+              </span>
+            </div>
+            <button class="mini" @click="showReSubmitForm = true" :disabled="isWorking">Re-submit</button>
           </div>
-          
-          <div class="arranged-data-card">
+
+          <div v-if="existingSubmission.candidate_info" class="meta-preview">
+            <div class="meta-item"><strong>Resume:</strong> {{ existingSubmission.candidate_info.filename }}</div>
+            <div v-if="requirements.github" class="meta-item"><strong>GitHub:</strong> {{ requirements.github }}</div>
+            <div v-if="requirements.scholarUrl" class="meta-item"><strong>Scholar:</strong> Link</div>
+          </div>
+
+          <div v-if="currentArrangedResume" class="arranged-data-card">
             <h3>Your Structured Resume Data</h3>
-            <p class="hint">This is how our AI objective summary sees your background.</p>
+            <p class="hint">This is an objective summary extracted by our AI agents.</p>
             <CandidateSnapshot :arranged-resume="currentArrangedResume" />
+          </div>
+          <div v-else-if="isWorking" class="evaluating-card">
+            <div class="loader"></div>
+            <p>Our AI agents are analyzing your new submission...</p>
           </div>
         </div>
 
@@ -246,39 +316,56 @@ function renderMarkdown(text) {
 .job-desc-readonly { background: var(--bg-card); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
 .job-desc-readonly label { display: block; margin-bottom: 0.75rem; font-weight: bold; font-size: 0.9rem; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
 
-.markdown-body { line-height: 1.6; font-size: 0.95rem; }
-.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { margin-top: 1.5rem; margin-bottom: 0.75rem; }
-.markdown-body :deep(p) { margin-bottom: 1rem; }
-.markdown-body :deep(ul), .markdown-body :deep(ol) { margin-bottom: 1rem; padding-left: 1.5rem; }
-.markdown-body :deep(li) { margin-bottom: 0.25rem; }
+.description-content { max-height: 200px; overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, black 60%, transparent 100%); transition: max-height 0.4s ease; }
+.description-content.expanded { max-height: 5000px; mask-image: none; }
+.text-btn { background: none; border: none; color: var(--ok); cursor: pointer; padding: 0.5rem 0; font-size: 0.9rem; font-weight: bold; }
+.text-btn:hover { text-decoration: underline; }
 
-.background-inputs { margin-top: 2rem; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
+.markdown-body { line-height: 1.6; font-size: 0.95rem; }
+.markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { margin-top: 1rem; margin-bottom: 0.75rem; font-size: 1.1rem; }
+.markdown-body :deep(p) { margin-bottom: 0.75rem; }
+.markdown-body :deep(ul), .markdown-body :deep(ol) { margin-bottom: 0.75rem; padding-left: 1.5rem; }
+
+.section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.section-title h3 { margin: 0; }
+.text-btn { background: none; border: none; color: var(--err); cursor: pointer; font-size: 0.9rem; }
+
+.background-inputs { margin-top: 1.5rem; padding: 1rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
 .background-inputs h3 { margin-bottom: 1rem; font-size: 1.1rem; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; }
 .form-group input { width: 100%; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; }
 
-.actions { margin-top: 2rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.actions { margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 #status { font-size: 0.9rem; color: var(--muted); }
 #status.err { color: var(--err); }
 #status.ok { color: var(--ok); }
 
-.summary-view { margin-top: 2rem; animation: slideUp 0.4s ease-out; }
-@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.submission-view { margin-top: 1.5rem; animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-.success-banner { background: #10b98122; border: 1px solid #10b98144; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; text-align: center; }
-.success-banner h3 { color: #10b981; margin-bottom: 0.5rem; }
+.submission-header { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 1rem 1.5rem; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+.status-info { display: flex; align-items: center; gap: 1rem; }
+.submitted-label { font-weight: bold; font-size: 0.9rem; }
 
-.arranged-data-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; }
-.arranged-data-card h3 { margin-bottom: 0.5rem; }
-.arranged-data-card .hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+.status-badge { padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: bold; width: fit-content; }
+.status-badge.evaluating { background: #3b82f622; color: #3b82f6; border: 1px solid #3b82f644; }
+.status-badge.ready { background: #10b98122; color: #10b981; border: 1px solid #10b98144; }
+
+.meta-preview { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 1.5rem; padding: 0 0.5rem; font-size: 0.9rem; }
+
+.arranged-data-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
+.arranged-data-card h3 { margin-bottom: 0.25rem; color: var(--fg); }
+.arranged-data-card .hint { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+
+.evaluating-card { text-align: center; padding: 3rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; display: flex; flex-direction: column; align-items: center; gap: 1rem; color: var(--muted); }
 
 .loader {
   border: 3px solid var(--border);
   border-top: 3px solid var(--ok);
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   animation: spin 1s linear infinite;
 }
 .mini-loader { width: 16px; height: 16px; border-width: 2px; }

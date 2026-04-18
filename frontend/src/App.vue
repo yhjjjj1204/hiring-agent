@@ -1,9 +1,10 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
 import AnalysisResult from './components/AnalysisResult.vue'
+import CandidateSnapshot from './components/CandidateSnapshot.vue'
 import Auth from './components/Auth.vue'
 import RecruiterDashboard from './components/RecruiterDashboard.vue'
 import JobList from './components/JobList.vue'
@@ -21,8 +22,12 @@ const requirements = reactive({
 const status = ref('')
 const statusClass = ref('')
 const isWorking = ref(false)
-const analysisData = ref(null)
 const errorOutput = ref('')
+
+// Candidate analysis tracking
+const currentRankingId = ref(null)
+const currentArrangedResume = ref(null)
+let candidatePollInterval = null
 
 async function runAnalysis() {
   if (!file.value) {
@@ -40,9 +45,10 @@ async function runAnalysis() {
 
   isWorking.value = true
   statusClass.value = ""
-  status.value = "Working…"
+  status.value = "Uploading and starting evaluation…"
   errorOutput.value = ""
-  analysisData.value = null
+  currentRankingId.value = null
+  currentArrangedResume.value = null
 
   const token = localStorage.getItem('token')
 
@@ -52,26 +58,57 @@ async function runAnalysis() {
       body: fd,
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    const text = await res.text()
-    let data
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    const data = await res.json()
     
     if (!res.ok) {
-      status.value = (data && data.detail) ? String(data.detail) : ("HTTP " + res.status)
+      status.value = data.detail || ("HTTP " + res.status)
       statusClass.value = "err"
       errorOutput.value = JSON.stringify(data, null, 2)
+      isWorking.value = false
       return
     }
     
-    status.value = "Application submitted successfully! Our recruiters will review it soon."
+    currentRankingId.value = data.ranking_id
+    status.value = "Resume uploaded! AI agents are summarizing your data..."
     statusClass.value = "ok"
-    analysisData.value = null 
+    
+    // Start polling for the structured result
+    startPollingCandidateStatus()
   } catch (e) {
     status.value = "Request failed: " + (e && e.message ? e.message : String(e))
     statusClass.value = "err"
-  } finally {
     isWorking.value = false
   }
+}
+
+async function startPollingCandidateStatus() {
+  if (candidatePollInterval) clearInterval(candidatePollInterval)
+  
+  const token = localStorage.getItem('token')
+  
+  candidatePollInterval = setInterval(async () => {
+    try {
+      // We'll use the recruiter-oriented rankings endpoint but filtered by our ID
+      // Actually, let's just fetch from dashboard/rankings?job_id=... and find ours
+      // In a real app we'd have a specific /analyze/status/{id} endpoint
+      const res = await fetch(`/dashboard/rankings?job_id=${selectedJob.value.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const myRank = data.items.find(r => r.ranking_id === currentRankingId.value)
+        if (myRank && myRank.status === 'ready') {
+          currentArrangedResume.value = myRank.arranged_resume
+          status.value = "Evaluation complete! Here is your objective resume summary."
+          clearInterval(candidatePollInterval)
+          candidatePollInterval = null
+          isWorking.value = false
+        }
+      }
+    } catch (e) {
+      console.error("Polling failed", e)
+    }
+  }, 3000)
 }
 
 function onAuthenticated(u) {
@@ -83,10 +120,13 @@ function logout() {
   localStorage.removeItem('user')
   user.value = null
   selectedJob.value = null
+  if (candidatePollInterval) clearInterval(candidatePollInterval)
 }
 
 function selectJob(job) {
   selectedJob.value = job
+  currentArrangedResume.value = null
+  currentRankingId.value = null
 }
 
 function goHome() {
@@ -97,6 +137,7 @@ function goHome() {
   status.value = ''
   statusClass.value = ''
   errorOutput.value = ''
+  if (candidatePollInterval) clearInterval(candidatePollInterval)
 }
 
 onMounted(() => {
@@ -104,6 +145,10 @@ onMounted(() => {
   if (savedUser) {
     user.value = JSON.parse(savedUser)
   }
+})
+
+onUnmounted(() => {
+  if (candidatePollInterval) clearInterval(candidatePollInterval)
 })
 
 function renderMarkdown(text) {
@@ -141,27 +186,43 @@ function renderMarkdown(text) {
           <div class="desc-content markdown-body" v-html="renderMarkdown(selectedJob.description)"></div>
         </div>
 
-        <ResumeUpload v-model="file" />
-        
-        <div class="background-inputs">
-          <h3>Background Info (Optional)</h3>
-          <div class="form-group">
-            <label>GitHub Username</label>
-            <input v-model="requirements.github" type="text" placeholder="username" />
+        <div v-if="!currentArrangedResume">
+          <ResumeUpload v-model="file" />
+          
+          <div class="background-inputs">
+            <h3>Background Info (Optional)</h3>
+            <div class="form-group">
+              <label>GitHub Username</label>
+              <input v-model="requirements.github" type="text" placeholder="username" />
+            </div>
+            <div class="form-group">
+              <label>Google Scholar URL</label>
+              <input v-model="requirements.scholarUrl" type="text" placeholder="https://scholar.google.com/..." />
+            </div>
+            <div class="form-group">
+              <label>Name Override (if OCR fails)</label>
+              <input v-model="requirements.nameOverride" type="text" placeholder="Full Name" />
+            </div>
           </div>
-          <div class="form-group">
-            <label>Google Scholar URL</label>
-            <input v-model="requirements.scholarUrl" type="text" placeholder="https://scholar.google.com/..." />
-          </div>
-          <div class="form-group">
-            <label>Name Override (if OCR fails)</label>
-            <input v-model="requirements.nameOverride" type="text" placeholder="Full Name" />
+
+          <div class="actions">
+            <button type="button" @click="runAnalysis" :disabled="isWorking">Submit Application</button>
+            <div v-if="isWorking" class="loader mini-loader"></div>
+            <span id="status" :class="statusClass">{{ status }}</span>
           </div>
         </div>
 
-        <div class="actions">
-          <button type="button" @click="runAnalysis" :disabled="isWorking">Submit Application</button>
-          <span id="status" :class="statusClass">{{ status }}</span>
+        <div v-if="currentArrangedResume" class="summary-view">
+          <div class="success-banner">
+            <h3>Application Submitted!</h3>
+            <p>{{ status }}</p>
+          </div>
+          
+          <div class="arranged-data-card">
+            <h3>Your Structured Resume Data</h3>
+            <p class="hint">This is how our AI objective summary sees your background.</p>
+            <CandidateSnapshot :arranged-resume="currentArrangedResume" />
+          </div>
         </div>
 
         <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
@@ -175,14 +236,15 @@ function renderMarkdown(text) {
 </template>
 
 <style scoped>
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
-.logo { cursor: pointer; transition: opacity 0.2s; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; }
+.logo { cursor: pointer; transition: opacity 0.2s; font-size: 1.4rem; margin: 0; }
 .logo:hover { opacity: 0.7; }
 .job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .user-info { display: flex; gap: 1rem; align-items: center; font-size: 0.9rem; }
 .mini { padding: 0.25rem 0.75rem; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); cursor: pointer; border-radius: 4px; }
-.job-desc-readonly { background: var(--bg-card); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
-.job-desc-readonly label { display: block; margin-bottom: 1rem; font-weight: bold; font-size: 0.9rem; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+.job-desc-readonly { background: var(--bg-card); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; }
+.job-desc-readonly label { display: block; margin-bottom: 0.75rem; font-weight: bold; font-size: 0.9rem; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
 
 .markdown-body { line-height: 1.6; font-size: 0.95rem; }
 .markdown-body :deep(h1), .markdown-body :deep(h2), .markdown-body :deep(h3) { margin-top: 1.5rem; margin-bottom: 0.75rem; }
@@ -195,10 +257,32 @@ function renderMarkdown(text) {
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; }
 .form-group input { width: 100%; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; }
-.actions { margin-top: 2rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+
+.actions { margin-top: 2rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 #status { font-size: 0.9rem; color: var(--muted); }
 #status.err { color: var(--err); }
 #status.ok { color: var(--ok); }
+
+.summary-view { margin-top: 2rem; animation: slideUp 0.4s ease-out; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+.success-banner { background: #10b98122; border: 1px solid #10b98144; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; text-align: center; }
+.success-banner h3 { color: #10b981; margin-bottom: 0.5rem; }
+
+.arranged-data-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; }
+.arranged-data-card h3 { margin-bottom: 0.5rem; }
+.arranged-data-card .hint { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+
+.loader {
+  border: 3px solid var(--border);
+  border-top: 3px solid var(--ok);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+.mini-loader { width: 16px; height: 16px; border-width: 2px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 #errorOut {
   margin-top: 1rem;

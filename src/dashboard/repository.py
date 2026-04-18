@@ -66,6 +66,7 @@ def update_candidate_ranking_result(
     dimensions: list[dict[str, Any]],
     summary: str,
     scorecard: dict[str, Any],
+    arranged_resume: dict[str, Any] | None = None,
     db: Database[Any] | None = None,
 ) -> None:
     d = db or get_database()
@@ -78,6 +79,7 @@ def update_candidate_ranking_result(
                 "dimensions": dimensions,
                 "summary": summary,
                 "scorecard_snapshot": scorecard,
+                "arranged_resume": arranged_resume,
                 "evaluated_at": _utcnow(),
             }
         },

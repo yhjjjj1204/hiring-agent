@@ -107,7 +107,8 @@ async def _background_evaluate_resume(
             overall_score=float(sc_dict.get("overall_score", 0)),
             dimensions=dims_list,
             summary=str(sc_dict.get("summary") or ""),
-            scorecard=sc_dict
+            scorecard=sc_dict,
+            arranged_resume=arranged
         )
     except Exception as e:
         print(f"Background evaluation failed for {ranking_id}: {e}")

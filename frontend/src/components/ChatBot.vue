@@ -24,6 +24,38 @@ const history = ref([])
 const isTyping = ref(false)
 const scrollRef = ref(null)
 
+// Resizable state
+const chatWidth = ref(380)
+const chatHeight = ref(520)
+const isResizing = ref(false)
+
+function startResize(e, direction) {
+  if (isFullScreen.value) return
+  isResizing.value = true
+  const startX = e.clientX
+  const startY = e.clientY
+  const startWidth = chatWidth.value
+  const startHeight = chatHeight.value
+
+  function onMouseMove(moveEvent) {
+    if (direction.includes('left')) {
+      chatWidth.value = Math.max(300, startWidth + (startX - moveEvent.clientX))
+    }
+    if (direction.includes('top')) {
+      chatHeight.value = Math.max(400, startHeight + (startY - moveEvent.clientY))
+    }
+  }
+
+  function onMouseUp() {
+    isResizing.value = false
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+  }
+
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+}
+
 // Role-based API base
 const apiBase = computed(() => `/api/${props.user.role}/chat`)
 
@@ -208,7 +240,16 @@ onMounted(() => {
       <MessageSquare :size="24" />
     </button>
 
-    <div :class="['chat-window', 'glass-card', { 'full-screen': isFullScreen }]" v-if="isOpen">
+    <div 
+      :class="['chat-window', 'glass-card', { 'full-screen': isFullScreen, 'is-resizing': isResizing }]" 
+      v-if="isOpen"
+      :style="!isFullScreen ? { width: chatWidth + 'px', height: chatHeight + 'px' } : {}"
+    >
+      <!-- Resize Handles -->
+      <div v-if="!isFullScreen" class="resize-handle top" @mousedown.prevent="startResize($event, 'top')"></div>
+      <div v-if="!isFullScreen" class="resize-handle left" @mousedown.prevent="startResize($event, 'left')"></div>
+      <div v-if="!isFullScreen" class="resize-handle top-left" @mousedown.prevent="startResize($event, 'top-left')"></div>
+
       <header class="chat-header">
         <div class="header-info">
           <Bot :size="18" class="bot-icon" />
@@ -289,13 +330,34 @@ onMounted(() => {
 
 .chat-window {
   width: 380px; height: 520px; display: flex; flex-direction: column;
-  overflow: hidden; background: #1e293b; border: 1px solid var(--border); box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible; background: #1e293b; border: 1px solid var(--border); box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  transition: width 0.3s ease, height 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.chat-window.is-resizing {
+  transition: none !important;
+  user-select: none;
 }
 
 .chat-window.full-screen {
   position: fixed; top: 1rem; left: 1rem; right: 1rem; bottom: 1rem;
-  width: calc(100vw - 2rem); height: calc(100vh - 2rem); z-index: 1001;
+  width: calc(100vw - 2rem) !important; height: calc(100vh - 2rem) !important; z-index: 1001;
+}
+
+/* Resize Handles */
+.resize-handle {
+  position: absolute;
+  z-index: 10;
+}
+.resize-handle.top {
+  top: -4px; left: 0; right: 0; height: 8px; cursor: ns-resize;
+}
+.resize-handle.left {
+  left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize;
+}
+.resize-handle.top-left {
+  top: -4px; left: -4px; width: 12px; height: 12px; cursor: nwse-resize;
 }
 
 .chat-header {
@@ -327,12 +389,20 @@ onMounted(() => {
 .assistant .header-icon { color: var(--muted); }
 .user .header-icon { color: var(--accent); }
 
-.message-bubble { padding: 0.6rem 0.9rem; border-radius: 4px; font-size: 0.9rem; line-height: 1.5; }
+.message-bubble { 
+  padding: 0.6rem 0.9rem; 
+  border-radius: 4px; 
+  font-size: 0.9rem; 
+  line-height: 1.5;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
 .message-bubble.user { background: var(--accent); color: white; border-radius: 8px 0 8px 8px; }
 .message-bubble.assistant { background: #0f172a; border: 1px solid var(--border); border-radius: 0 8px 8px 8px; }
 
-.user-msg { white-space: pre-wrap; }
-.message-content { word-break: break-word; }
+.user-msg { white-space: pre-wrap; word-break: break-word; }
+.message-content { width: 100%; }
 
 /* Eliminate large markdown gaps */
 .chat-md :deep(p) { margin: 0 0 0.4rem 0; }
@@ -340,6 +410,30 @@ onMounted(() => {
 .chat-md :deep(ul), .chat-md :deep(ol) { padding-left: 1.1rem; margin: 0 0 0.4rem 0; }
 .chat-md :deep(li) { margin-bottom: 0.2rem; }
 .chat-md :deep(strong) { color: #fff; }
+.chat-md :deep(pre) { 
+  background: #1e293b; 
+  padding: 0.5rem; 
+  border-radius: 4px; 
+  overflow-x: auto; 
+  margin: 0.5rem 0;
+  border: 1px solid var(--border);
+}
+.chat-md :deep(code) {
+  font-family: monospace;
+  background: rgba(255,255,255,0.1);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+.chat-md :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+.chat-md :deep(th), .chat-md :deep(td) {
+  border: 1px solid var(--border);
+  padding: 0.4rem;
+  text-align: left;
+}
 
 .multi-segment { display: flex; flex-direction: column; gap: 0.5rem; }
 

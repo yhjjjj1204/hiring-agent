@@ -38,6 +38,26 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 - **Role**: Job lifecycle management.
 - **Function**: Allows recruiters to create and edit job postings. Candidates can view available jobs and apply for specific roles, linking their analysis results to the selected job.
 
+### 8. AI Platform Assistant (`src/api/routes_chat.py`)
+- **Role**: Context-aware user support and entity navigation.
+- **Mechanism**: Dynamic Tool Calling + Multi-segment UI rendering.
+- **Function**: Provides real-time assistance to recruiters and candidates. It uses technical IDs (job_id, ranking_id) from the page context to fetch live data and inject interactive entity cards directly into the chat flow.
+
+## Architecture & Security Patterns
+
+### 1. Service-Layer Decoupling (`src/services/`)
+- All core business logic (Jobs, Rankings, Evaluations) is decoupled from the API routes into a dedicated services layer.
+- **Hardened Permissions**: Every service function requires a `User` object and performs internal role-based access control (RBAC). This ensures that even if an AI tool attempts an unauthorized call, the service layer will block it.
+
+### 2. Role-Aware Tool Registry
+- The AI Assistant's capabilities are dynamically constructed based on the active user's session.
+- **Privacy Hardening**: Tools for sensitive operations (e.g., `create_job`) are only bound to the LLM when the user has the `recruiter` role. Candidates never see these capabilities exist.
+- **ID Secrecy**: Technical UUIDs are provided to the LLM via the hidden context. The LLM is instructed to use these for data retrieval but never print them in natural language, using human-friendly names instead.
+
+### 3. Interactive Entity Cards
+- **Injection Format**: The assistant uses a specialized `[[TYPE:ID]]` marker to inject rich UI components (Cards) into its chat bubbles.
+- **Persistence & Navigation**: Cards are interactive. Clicking a Job or Candidate card triggers a global state change, navigating the user to the relevant page while keeping the chat session persistent.
+
 ## Frontend Design & UX Strategy
 
 ### Design Philosophy (Steady & Professional)
@@ -47,6 +67,7 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 4.  **Slate-Based Business Palette**: Use a grounded high-contrast theme (Deep Navy background `#0f172a`, darker Header `#111827`, Slate panels `#1e293b`). Vibrancy is reserved for active states: Electric Blue (`#3b82f6`) for actions and Emerald Green (`#10b981`) for success/match scores.
 5.  **Unified Data Components**: Re-use visual patterns for similar data across all roles. Chronological data (Education/Experience) must use a **Unified Timeline** with accent dots aligned to the first line of text.
 6.  **Responsive Stability**: Ensure components naturally occupy available width while maintaining strict alignment. Avoid "visual breakage" by carefully calculating margins and padding to preserve the established grid.
+7.  **Context-Aware Chat Assistant**: A persistent floating assistant that captures structural context (e.g., `job_id`, `candidate_id`) to provide precise, role-specific help and entity navigation.
 
 ## Support Modules
 
@@ -69,11 +90,13 @@ The frontend is a modular **Vue 3** application built with **Vite**.
     - `RecruiterDashboard.vue`: Multi-page dashboard with candidate tracking and evaluation status.
     - `JobManager.vue`: Role-based job management with unified grid layout.
     - `JobList.vue`: Job board for candidates with submission tracking.
+    - `ChatBot.vue`: Context-aware AI assistant with card injection and fullscreen support.
 - **Serving Logic**: The FastAPI backend (`src/api/main.py`) serves the production build from `frontend/dist/` if present, falling back to `frontend/src/` for development mode.
 
 ## Project Structure
 - `src/`: Core Python package containing all logic.
   - `agents/`: Individual agent implementations.
+  - `services/`: Decoupled core logic with internal RBAC.
   - `api/`: FastAPI-based REST endpoints.
   - `graph/`: Workflow and pipeline definitions.
   - `db/`: Database connection management.
@@ -88,6 +111,8 @@ The frontend is a modular **Vue 3** application built with **Vite**.
 
 1. **Commit Protocol**: When a major functionality or feature is added, the LLM must prompt the user to commit the changes to version control.
 2. **Design Integrity**: Before modifying the frontend, the LLM MUST carefully analyze the current design in the source (`style.css` and existing components). Do NOT break the established visual hierarchy. Calculate paddings, margins, and grid gaps precisely to avoid visual breakage.
-3. **Standard Language**: All code comments and documentation MUST be written in **English**, even if the user provides prompts in other languages (e.g., Chinese).
-4. **Architectural Integrity**: Maintain clean, organized code. Before implementing changes, consider the entire system architecture. Avoid "patch-like" fixes; instead, act as a lead **Architectural Engineer** to ensure changes are seamless, idiomatic, and maintainable.
-5. **Documentation Maintenance**: When the file structure is changed or updated, or new functionality is added, the LLM must check and update `AGENTS.md` to ensure it remains the accurate source of truth.
+3. **Permission Consistency**: New tools added to the AI Assistant must correspond to a service-layer function that performs its own RBAC checks. Always pass the `User` object through to the service.
+4. **Tool Documentation**: Every AI tool must have a clear description identifying the specific ID types (e.g., `job_id`, `ranking_id`) it requires to prevent the LLM from attempting to use human names as technical keys.
+5. **Standard Language**: All code comments and documentation MUST be written in **English**, even if the user provides prompts in other languages (e.g., Chinese).
+6. **Architectural Integrity**: Maintain clean, organized code. Before implementing changes, consider the entire system architecture. Avoid "patch-like" fixes; instead, act as a lead **Architectural Engineer** to ensure changes are seamless, idiomatic, and maintainable.
+7. **Documentation Maintenance**: When the file structure is changed or updated, or new functionality is added, the LLM must check and update `AGENTS.md` to ensure it remains the accurate source of truth.

@@ -296,12 +296,13 @@ async function handleNavigateFromChat(payload) {
               <Moon v-if="theme === 'dark'" :size="14" />
               <Sun v-else :size="14" />
             </button>
-            <div v-if="user" class="user-info">
-              <span class="user-name">{{ user.username }}</span>
-              <span class="user-role badge">{{ user.role }}</span>
-              <button class="mini secondary" @click="logout">
-                <LogOut :size="14" />
-                Logout
+            <div v-if="user" class="user-profile">
+              <div class="profile-details">
+                <span class="user-name">{{ user.username }}</span>
+                <span class="user-role">{{ user.role }}</span>
+              </div>
+              <button class="logout-btn" @click="logout" title="Logout">
+                <LogOut :size="16" />
               </button>
             </div>
           </div>
@@ -467,8 +468,57 @@ async function handleNavigateFromChat(payload) {
   color: var(--accent);
 }
 
-.user-info { display: flex; gap: 1rem; align-items: center; }
-.user-name { font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--border);
+  margin-left: 0.25rem;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.user-name { 
+  font-size: 0.85rem; 
+  font-weight: 700; 
+  color: var(--headings); 
+}
+
+.user-role {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.logout-btn {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 32px;
+  height: 32px;
+  padding: 0 !important;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-btn:hover {
+  background: var(--err-glow);
+  color: var(--err);
+  border-color: var(--err);
+}
+
 .badge {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);

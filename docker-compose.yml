@@ -1,0 +1,43 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DB=hiring_agent
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HIRING_AGENT_API_KEY=${HIRING_AGENT_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - UPLOADS_DIR=/data/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/data/uploads
+    networks:
+      - hiring-network
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - hiring-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --eval 'db.adminCommand(\"ping\").ok' --quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  hiring-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

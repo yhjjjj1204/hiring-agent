@@ -8,8 +8,9 @@ from fastapi import HTTPException, BackgroundTasks
 from api.auth_models import User
 from db.mongo import get_database
 from dashboard.repository import list_rankings as list_rankings_repo
+import config
 
-_UPLOAD_DIR = Path("uploads/resumes")
+_UPLOAD_DIR = Path(config.UPLOADS_DIR) / "resumes"
 
 def list_candidate_rankings(
     current_user: User,

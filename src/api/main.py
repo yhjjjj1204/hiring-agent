@@ -23,15 +23,33 @@ from api.routes_auth import router as auth_router
 from api.routes_candidate import router as candidate_router
 from api.routes_recruiter import router as recruiter_router
 
+import time
+import pymongo
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ensure_auth_indexes()
-    ensure_hr_strategy_indexes()
-    ensure_resume_ingest_indexes()
-    ensure_background_analysis_indexes()
-    ensure_candidate_ranking_indexes()
+    # Retry logic for DB connection/indexing during startup
+    max_retries = 10
+    retry_interval = 3
     db = get_database()
-    db.jobs.create_index("id", unique=True)
+    
+    for i in range(max_retries):
+        try:
+            logging.info(f"Ensuring database indexes (attempt {i+1}/{max_retries})...")
+            ensure_auth_indexes()
+            ensure_hr_strategy_indexes()
+            ensure_resume_ingest_indexes()
+            ensure_background_analysis_indexes()
+            ensure_candidate_ranking_indexes()
+            db.jobs.create_index("id", unique=True)
+            logging.info("Database indexes ensured successfully.")
+            break
+        except (pymongo.errors.ServerSelectionTimeoutError, pymongo.errors.AutoReconnect) as e:
+            if i == max_retries - 1:
+                logging.error("Failed to connect to MongoDB after multiple retries.")
+                raise
+            logging.warning(f"MongoDB not ready, retrying in {retry_interval}s... ({e})")
+            time.sleep(retry_interval)
     yield
 
 

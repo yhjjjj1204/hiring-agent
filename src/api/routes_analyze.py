@@ -29,7 +29,7 @@ from services.rankings import trigger_re_evaluation, trigger_re_evaluation_all, 
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
-_UPLOAD_DIR = Path("uploads/resumes")
+_UPLOAD_DIR = Path(config.UPLOADS_DIR) / "resumes"
 _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 _ALLOWED_EXT_HELP = ".pdf / .png / .jpg / .jpeg / .webp / .gif / .bmp / .tiff / .tif"

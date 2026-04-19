@@ -229,3 +229,9 @@ result-*
 
 # Ignore NixOS interactive test driver history
 **/.nixos-test-history
+
+/mongodb_data
+/uploads
+
+.DS_Store
+node_modules

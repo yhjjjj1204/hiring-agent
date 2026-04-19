@@ -401,8 +401,8 @@ defineExpose({ reset, onSelectJob, selectCandidate })
 .text-btn { font-size: 0.85rem; color: var(--accent); cursor: pointer; background: none; border: none; font-weight: 700; padding: 0.5rem 0; }
 
 .ai-summary-box {
-  background: rgba(var(--accent-rgb), 0.05);
-  border: 1px solid rgba(var(--accent-rgb), 0.2);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1.5rem;
@@ -422,7 +422,7 @@ defineExpose({ reset, onSelectJob, selectCandidate })
   font-size: 0.95rem;
   line-height: 1.5;
   font-style: italic;
-  color: white;
+  color: var(--text);
 }
 .generating-text {
   display: flex;
@@ -496,7 +496,7 @@ defineExpose({ reset, onSelectJob, selectCandidate })
 }
 .empty-state-container h4 {
   margin: 0 0 0.5rem 0;
-  color: white;
+  color: var(--headings);
 }
 .empty-state-container p {
   margin: 0;
@@ -506,7 +506,6 @@ defineExpose({ reset, onSelectJob, selectCandidate })
 
 .spin { animation: spin 2s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.warn { color: #f59e0b !important; border-color: rgba(245, 158, 11, 0.3) !important; }
-.danger { color: #ef4444 !important; border-color: rgba(239, 68, 68, 0.3) !important; }
-.danger:hover { background: rgba(239, 68, 68, 0.1) !important; }
+
+/* Button variations now handled in style.css, but keep overrides if specific */
 </style>

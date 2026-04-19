@@ -10,7 +10,9 @@ import {
   CheckCircle, 
   RefreshCw,
   Loader2,
-  Briefcase
+  Briefcase,
+  Sun,
+  Moon
 } from 'lucide-vue-next'
 import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
@@ -35,6 +37,14 @@ const status = ref('')
 const statusClass = ref('')
 const isWorking = ref(false)
 const errorOutput = ref('')
+
+const theme = ref(localStorage.getItem('theme') || 'dark')
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  document.documentElement.setAttribute('data-theme', theme.value)
+  localStorage.setItem('theme', theme.value)
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -197,6 +207,7 @@ function goHome() {
 }
 
 onMounted(() => {
+  document.documentElement.setAttribute('data-theme', theme.value)
   const savedUser = localStorage.getItem('user')
   if (savedUser) {
     user.value = JSON.parse(savedUser)
@@ -279,14 +290,20 @@ async function handleNavigateFromChat(payload) {
             <span class="logo-icon"><Briefcase :size="16" /></span> HiringAgent
           </h1>
         </div>
-        <div v-if="user" class="header-right">
-          <div class="user-info">
-            <span class="user-name">{{ user.username }}</span>
-            <span class="user-role badge">{{ user.role }}</span>
-            <button class="mini secondary" @click="logout">
-              <LogOut :size="14" />
-              Logout
+        <div class="header-right">
+          <div class="header-actions">
+            <button class="mini secondary theme-toggle" @click="toggleTheme" title="Toggle Theme">
+              <Moon v-if="theme === 'dark'" :size="14" />
+              <Sun v-else :size="14" />
             </button>
+            <div v-if="user" class="user-info">
+              <span class="user-name">{{ user.username }}</span>
+              <span class="user-role badge">{{ user.role }}</span>
+              <button class="mini secondary" @click="logout">
+                <LogOut :size="14" />
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -436,6 +453,18 @@ async function handleNavigateFromChat(payload) {
   align-items: center;
   justify-content: center;
   border-radius: 4px;
+}
+
+.header-actions { display: flex; gap: 1rem; align-items: center; }
+.theme-toggle { 
+  width: 30px; 
+  height: 30px; 
+  padding: 0 !important; 
+  border-radius: 50% !important; 
+  color: var(--muted);
+}
+.theme-toggle:hover {
+  color: var(--accent);
 }
 
 .user-info { display: flex; gap: 1rem; align-items: center; }

@@ -128,7 +128,7 @@ const props = defineProps(['arrangedResume'])
   margin-bottom: 1.25rem; 
   padding-bottom: 0.5rem; 
   border-bottom: 1px solid var(--border); 
-  color: #fff;
+  color: var(--headings);
   font-size: 0.85rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -157,7 +157,7 @@ const props = defineProps(['arrangedResume'])
 }
 
 .timeline-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.3rem; }
-.timeline-title { font-size: 1rem; color: #fff; line-height: 1.4; }
+.timeline-title { font-size: 1rem; color: var(--headings); line-height: 1.4; }
 .timeline-date { font-size: 0.8rem; color: var(--muted); font-weight: 600; white-space: nowrap; margin-top: 0.2rem; }
 
 .timeline-sub { font-size: 0.9rem; margin-bottom: 0.4rem; font-weight: 600; }
@@ -173,7 +173,7 @@ const props = defineProps(['arrangedResume'])
 
 /* Projects */
 .projects-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-.prj-card { background: rgba(0, 0, 0, 0.1); padding: 1rem; border-radius: 4px; border: 1px solid var(--border); }
+.prj-card { background: var(--glass); padding: 1rem; border-radius: 4px; border: 1px solid var(--border); }
 .prj-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
 .prj-date { font-size: 0.75rem; color: var(--muted); }
 .prj-desc { font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem; line-height: 1.5; }

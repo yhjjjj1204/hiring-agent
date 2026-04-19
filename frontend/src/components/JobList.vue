@@ -128,7 +128,7 @@ onMounted(fetchJobs)
 }
 .empty-state-container h4 {
   margin: 0 0 0.5rem 0;
-  color: white;
+  color: var(--headings);
 }
 .empty-state-container p {
   margin: 0;

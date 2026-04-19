@@ -1,18 +1,48 @@
 :root {
+  /* Common Colors */
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --err: #ef4444;
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --card-radius: 4px;
+
+  /* Dark Theme Variables (Default) */
   --bg: #0f172a;
   --header-bg: #111827;
   --bg-subtle: #1e293b;
   --panel: #1e293b;
   --text: #f8fafc;
+  --headings: #ffffff;
   --muted: #94a3b8;
-  --accent: #3b82f6;
-  --accent-glow: rgba(59, 130, 246, 0.15);
-  --err: #ef4444;
-  --ok: #10b981;
-  --ok-glow: rgba(16, 185, 129, 0.1);
   --border: #334155;
   --border-subtle: rgba(255, 255, 255, 0.05);
-  --card-radius: 4px;
+  --glass: rgba(255, 255, 255, 0.03);
+  --accent-glow: rgba(59, 130, 246, 0.15);
+  --ok-glow: rgba(16, 185, 129, 0.1);
+  --err-glow: rgba(239, 68, 68, 0.1);
+  --warn-glow: rgba(245, 158, 11, 0.1);
+  --input-bg: #0f172a;
+  --card-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='light'] {
+  --bg: #ffffff;
+  --header-bg: #f8fafc;
+  --bg-subtle: #f1f5f9;
+  --panel: #f1f5f9;
+  --text: #0f172a;
+  --headings: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --border-subtle: rgba(0, 0, 0, 0.05);
+  --glass: rgba(0, 0, 0, 0.02);
+  --accent-glow: rgba(59, 130, 246, 0.1);
+  --ok-glow: rgba(16, 185, 129, 0.05);
+  --err-glow: rgba(239, 68, 68, 0.05);
+  --warn-glow: rgba(245, 158, 11, 0.05);
+  --input-bg: #ffffff;
+  --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
 
 * {
@@ -28,6 +58,7 @@ body {
   color: var(--text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .app-root {
@@ -47,7 +78,7 @@ body {
 h1, h2, h3, h4 {
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: #fff;
+  color: var(--headings);
 }
 
 h1 { font-size: 1.75rem; }
@@ -58,7 +89,7 @@ h3 { font-size: 1.1rem; }
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: var(--card-shadow);
 }
 
 button {
@@ -70,34 +101,45 @@ button {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.1s ease;
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
 }
 
-button:hover { background: #2563eb; }
+button:hover { background: var(--accent-hover); }
 
 button.secondary {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass);
   border: 1px solid var(--border);
   color: var(--text);
 }
 
-button.secondary:hover { background: rgba(255, 255, 255, 0.1); }
+button.secondary:hover { background: var(--border-subtle); }
 
 button.mini { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
+
+button.warn { background: var(--warn); }
+button.warn:hover { filter: brightness(1.1); }
+button.secondary.warn { color: var(--warn); border-color: var(--warn-glow); background: var(--warn-glow); }
+button.secondary.warn:hover { background: var(--warn); color: #fff; }
+
+button.danger { background: var(--err); }
+button.danger:hover { filter: brightness(1.1); }
+button.secondary.danger { color: var(--err); border-color: var(--err-glow); background: var(--err-glow); }
+button.secondary.danger:hover { background: var(--err); color: #fff; }
 
 input, select, textarea {
   width: 100%;
   padding: 0.65rem 0.9rem;
   border-radius: 4px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--input-bg);
   color: var(--text);
   font-size: 0.95rem;
   font-family: inherit;
+  transition: border-color 0.2s ease;
 }
 
 input:focus, textarea:focus {
@@ -132,12 +174,12 @@ label {
   gap: 1rem;
 }
 .job-card:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--glass);
   border-color: var(--muted);
 }
 
 .job-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
-.job-card-title-group h4 { margin: 0 0 0.15rem 0; font-size: 1.15rem; line-height: 1.3; color: #fff; }
+.job-card-title-group h4 { margin: 0 0 0.15rem 0; font-size: 1.15rem; line-height: 1.3; color: var(--headings); }
 .job-card-date { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
 
 .job-card-preview { 

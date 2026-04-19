@@ -126,7 +126,7 @@ async function submit() {
 .auth-header { text-align: center; }
 .auth-icon { 
   margin-bottom: 1.25rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass);
   width: 64px;
   height: 64px;
   display: flex;
@@ -170,7 +170,7 @@ async function submit() {
 .role-option.active {
   border-color: var(--accent);
   background: var(--accent-glow);
-  color: #fff;
+  color: var(--headings);
 }
 
 .auth-actions { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; }
@@ -183,6 +183,6 @@ async function submit() {
   padding: 0.6rem;
   border-radius: 4px;
 }
-.status-msg.err { background: rgba(239, 68, 68, 0.05); color: var(--err); border: 1px solid rgba(239, 68, 68, 0.1); }
-.status-msg.ok { background: rgba(16, 185, 129, 0.05); color: var(--ok); border: 1px solid rgba(16, 185, 129, 0.1); }
+.status-msg.err { background: var(--err-glow); color: var(--err); border: 1px solid var(--err); }
+.status-msg.ok { background: var(--ok-glow); color: var(--ok); border: 1px solid var(--ok); }
 </style>

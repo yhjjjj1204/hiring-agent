@@ -54,21 +54,21 @@ const props = defineProps(['data'])
 .summary { font-size: 1rem; line-height: 1.6; margin-bottom: 2rem; font-style: italic; opacity: 0.9; }
 
 .dimensions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.dim-card { padding: 1.25rem; background: rgba(255,255,255,0.01); }
+.dim-card { padding: 1.25rem; background: var(--glass); }
 .dim-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
 .dim-score { color: var(--ok); font-weight: 700; }
 .dim-rationale { font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
 
 .hitl-alert { 
   margin-top: 2rem; 
-  background: rgba(245, 158, 11, 0.05); 
-  border: 1px solid rgba(245, 158, 11, 0.2); 
+  background: var(--warn-glow); 
+  border: 1px solid var(--warn); 
   padding: 1.25rem; 
   border-radius: 4px; 
-  color: #f59e0b;
+  color: var(--warn);
 }
 .alert-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
-.hitl-alert p { font-size: 0.9rem; opacity: 0.9; }
+.hitl-alert p { font-size: 0.9rem; opacity: 0.9; color: var(--text); }
 
 @media (max-width: 800px) {
   .dimensions-grid { grid-template-columns: 1fr; }

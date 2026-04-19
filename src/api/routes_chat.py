@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 from langchain_core.tools import StructuredTool
+from starlette.concurrency import run_in_threadpool
 
 import config
 from api.auth_models import User
@@ -48,21 +49,87 @@ def get_job_details_tool(user: User):
 
 def get_candidate_rankings_tool(user: User):
     def tool_func(job_id: Optional[str] = None):
-        """List candidate applications. Use 'ranking_id' from the returned list for any CANDIDATE card or detail fetch."""
+        """List all candidate applications and their scores. Only available for recruiters."""
         return list_candidate_rankings(user, job_id=job_id)
-    return StructuredTool.from_function(func=tool_func, name="list_rankings", description="List candidate applications and their scores")
+    return StructuredTool.from_function(func=tool_func, name="list_rankings", description="List all candidate applications and their scores")
 
 def get_candidate_details_tool(user: User):
     def tool_func(ranking_id: str):
-        """Get full details of a specific candidate application. Requires a technical ranking_id (UUID), not a name."""
-        from db.mongo import get_database
-        db = get_database()
-        doc = db.candidate_rankings.find_one({"ranking_id": ranking_id})
-        if doc:
-            doc.pop("_id", None)
-            return doc
-        return {"error": f"Candidate ranking with id {ranking_id} not found. Ensure you are using the ranking_id (UUID)."}
-    return StructuredTool.from_function(func=tool_func, name="get_candidate_details", description="Get full details of a specific candidate by their ranking_id")
+        """Get full details of a specific candidate's application. Only available for recruiters."""
+        from api.routes_dashboard import get_ranking
+        try:
+            return get_ranking(ranking_id, user)
+        except Exception as e:
+            return {"error": str(e)}
+    return StructuredTool.from_function(func=tool_func, name="get_candidate_details", description="Get full details of a specific candidate application")
+
+def get_my_applications_tool(user: User):
+    def tool_func():
+        """List all your job applications and their current status. Only available for candidates."""
+        return list_candidate_rankings(user)
+    return StructuredTool.from_function(func=tool_func, name="get_my_applications", description="List your job applications and status")
+
+def get_application_details_tool(user: User):
+    def tool_func(job_id: str):
+        """Get details and status of your application for a specific job. Only available for candidates."""
+        from services.rankings import get_my_submission
+        try:
+            return get_my_submission(job_id, user)
+        except Exception as e:
+            return {"error": str(e)}
+    return StructuredTool.from_function(func=tool_func, name="get_application_details", description="Get status of your application for a specific job")
+
+def get_create_job_tool(user: User):
+    def tool_func(title: str, description: str):
+        """Create a new job position. Only available for recruiters. 
+        Requires a 'title' and a 'description' (can be markdown)."""
+        return create_job(title, description, user)
+    return StructuredTool.from_function(func=tool_func, name="create_job", description="Post a new job position")
+
+def get_update_job_tool(user: User):
+    def tool_func(job_id: str, title: Optional[str] = None, description: Optional[str] = None):
+        """Update an existing job position. Only available for recruiters.
+        Provide the job_id and at least one field to update."""
+        from services.jobs import update_job
+        return update_job(job_id, title, description, user)
+    return StructuredTool.from_function(func=tool_func, name="update_job", description="Update an existing job position")
+
+def get_delete_job_tool(user: User):
+    def tool_func(job_id: str):
+        """Delete an existing job position. Only available for recruiters."""
+        from services.jobs import delete_job
+        return delete_job(job_id, user)
+    return StructuredTool.from_function(func=tool_func, name="delete_job", description="Delete a job position")
+
+def get_re_evaluate_tool(user: User):
+    async def tool_func(ranking_id: str):
+        """Trigger a re-evaluation of a specific candidate's resume. Only available for recruiters."""
+        from fastapi import BackgroundTasks
+        from services.rankings import trigger_re_evaluation
+        # Note: BackgroundTasks cannot be easily injected here without more plumbing,
+        # but we can trigger it directly if we don't mind the wait, or use a mock background task.
+        # For simplicity in the tool, we'll try to use a dummy background task if needed.
+        bt = BackgroundTasks()
+        res = await trigger_re_evaluation(ranking_id, user, bt)
+        # We manually run the tasks if any were added
+        for task in bt.tasks:
+            await run_in_threadpool(task.func, *task.args, **task.kwargs)
+        return res
+    return StructuredTool.from_function(func=tool_func, name="re_evaluate_candidate", description="Trigger re-evaluation of a candidate")
+
+def get_re_evaluate_all_tool(user: User):
+    async def tool_func(job_id: str):
+        """Trigger re-evaluation of ALL candidates for a specific job. Only available for recruiters."""
+        from fastapi import BackgroundTasks
+        from services.rankings import trigger_re_evaluation_all
+        bt = BackgroundTasks()
+        res = await trigger_re_evaluation_all(job_id, user, bt)
+        for task in bt.tasks:
+            # Re-evaluation all might have many tasks, running them sequentially here might be slow
+            # but for a tool call it's better than nothing.
+            await run_in_threadpool(task.func, *task.args, **task.kwargs)
+        return res
+    return StructuredTool.from_function(func=tool_func, name="re_evaluate_all_candidates", description="Trigger re-evaluation for all candidates of a job")
 
 def _get_chat_model() -> ChatOpenAI:
     if not config.OPENAI_API_KEY:
@@ -91,10 +158,23 @@ async def chat_message(
     
     tools = [
         get_job_list_tool(current_user),
-        get_job_details_tool(current_user),
-        get_candidate_rankings_tool(current_user),
-        get_candidate_details_tool(current_user)
+        get_job_details_tool(current_user)
     ]
+    if current_user.role == "recruiter":
+        tools.extend([
+            get_candidate_rankings_tool(current_user),
+            get_candidate_details_tool(current_user),
+            get_create_job_tool(current_user),
+            get_update_job_tool(current_user),
+            get_delete_job_tool(current_user),
+            get_re_evaluate_tool(current_user),
+            get_re_evaluate_all_tool(current_user)
+        ])
+    elif current_user.role == "candidate":
+        tools.extend([
+            get_my_applications_tool(current_user),
+            get_application_details_tool(current_user)
+        ])
     
     model_with_tools = model.bind_tools(tools)
     raw_history = list(db.chat_history.find({"username": current_user.username}).sort("timestamp", 1))
@@ -110,8 +190,12 @@ GUIDELINES:
    - NEVER use the human name (e.g. 'aleksana') as an ID.
 3. INJECTION FORMAT (MANDATORY): You MUST ALWAYS use the format [[JOB:job_id]] or [[CANDIDATE:ranking_id]] when mentioning a specific entity.
    - Example: If context says 'candidate_id: 0824c576...', use [[CANDIDATE:0824c576...]]
+   - When you create a job, use the returned 'id' to inject a [[JOB:id]] card in your response.
 4. When summarizing tool outputs, be extremely concise. Provide only relevant facts.
 5. NEVER print raw UUIDs in your conversational text.
+6. ROLE-SPECIFIC CAPABILITIES:
+   - RECRUITERS: You can manage the entire job lifecycle, including posting new roles, updating requirements, and removing positions. You also have access to all candidate evaluations, allowing you to review detailed scores, compare rankings, and trigger re-evaluations of resumes when necessary.
+   - CANDIDATES: You can view your personal application history and check the current status of your submissions for various roles.
 """
     messages = [SystemMessage(content=system_prompt)]
     for m in raw_history:

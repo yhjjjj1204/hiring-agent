@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
 from api.auth_models import UserCreate, User, Token, UserInDB
 from api.auth_utils import get_password_hash, verify_password, create_access_token
 from api.auth_repository import get_user, create_user
@@ -20,9 +21,9 @@ def register(user_in: UserCreate):
     return User(username=user_in.username, role=user_in.role)
 
 @router.post("/login", response_model=Token)
-def login(user_in: UserCreate): # Using UserCreate for convenience to get username/password
-    user = get_user(user_in.username)
-    if not user or not verify_password(user_in.password, user.hashed_password):
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = get_user(form_data.username)
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     
     access_token = create_access_token(user.username)

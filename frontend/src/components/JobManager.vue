@@ -12,7 +12,7 @@ const status = ref('')
 async function fetchJobs() {
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch('/jobs/', {
+    const res = await fetch('/api/recruiter/jobs', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (res.ok) jobs.value = await res.json()
@@ -24,7 +24,7 @@ async function fetchJobs() {
 async function createJob() {
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch('/jobs/', {
+    const res = await fetch('/api/recruiter/jobs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

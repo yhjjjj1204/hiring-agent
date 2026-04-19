@@ -49,6 +49,12 @@ async function runAnalysis() {
     statusClass.value = "err"
     return
   }
+  
+  if (!selectedJob.value?.id) {
+    status.value = "No job selected. Please try again."
+    statusClass.value = "err"
+    return
+  }
 
   const fd = new FormData()
   fd.append("resume", file.value, file.value.name)
@@ -57,7 +63,7 @@ async function runAnalysis() {
   if (requirements.scholarUrl.trim()) fd.append("google_scholar_url", requirements.scholarUrl.trim())
   if (requirements.nameOverride.trim()) fd.append("candidate_name_override", requirements.nameOverride.trim())
 
-  isWorking = true
+  isWorking.value = true
   statusClass.value = ""
   status.value = "Uploading and starting evaluation…"
   errorOutput.value = ""
@@ -66,11 +72,12 @@ async function runAnalysis() {
   const token = localStorage.getItem('token')
 
   try {
-    const res = await fetch("/analyze/resume", {
+    const res = await fetch("/api/candidate/resume", {
       method: "POST",
       body: fd,
       headers: { 'Authorization': `Bearer ${token}` }
     })
+    
     const data = await res.json()
     
     if (!res.ok) {
@@ -85,6 +92,8 @@ async function runAnalysis() {
     status.value = "Application submitted! AI agents are summarizing your data..."
     statusClass.value = "ok"
     
+    // Refresh local state
+    await fetchMySubmission()
     startPollingCandidateStatus()
   } catch (e) {
     status.value = "Request failed: " + (e && e.message ? e.message : String(e))
@@ -98,11 +107,11 @@ async function fetchMySubmission() {
   
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch(`/analyze/my-submission/${selectedJob.value.id}`, {
+    const res = await fetch(`/api/candidate/my-submission/${selectedJob.value.id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    if (res.ok) {
-      const data = await res.json()
+    const data = await res.json()
+    if (res.ok && data) {
       existingSubmission.value = data
       currentRankingId.value = data.ranking_id
       currentArrangedResume.value = data.arranged_resume
@@ -116,11 +125,14 @@ async function fetchMySubmission() {
       if (data.status === 'evaluating') {
         isWorking.value = true
         startPollingCandidateStatus()
+      } else {
+        isWorking.value = false
       }
     } else {
       existingSubmission.value = null
       currentRankingId.value = null
       currentArrangedResume.value = null
+      isWorking.value = false
     }
   } catch (e) {
     console.error("Failed to fetch submission", e)
@@ -134,20 +146,24 @@ async function startPollingCandidateStatus() {
   
   candidatePollInterval = setInterval(async () => {
     try {
-      const res = await fetch(`/analyze/my-submission/${selectedJob.value.id}`, {
+      const res = await fetch(`/api/candidate/my-submission/${selectedJob.value.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
-      if (res.ok) {
+      if (res.ok && data) {
+        existingSubmission.value = data
         if (data.status === 'ready') {
           currentArrangedResume.value = data.arranged_resume
-          existingSubmission.value = data
           status.value = "Update complete! Here is your objective resume summary."
           clearInterval(candidatePollInterval)
           candidatePollInterval = null
           isWorking.value = false
           showReSubmitForm.value = false
         }
+      } else if (res.ok && !data) {
+        clearInterval(candidatePollInterval)
+        candidatePollInterval = null
+        isWorking.value = false
       }
     } catch (e) {
       console.error("Polling failed", e)
@@ -181,7 +197,6 @@ function selectJob(job) {
     fetchMySubmission()
   }
   
-  // Hard reset recruiter component state if active
   if (recruiterDashboardRef.value) {
     recruiterDashboardRef.value.selectedCandidate = null
   }
@@ -216,7 +231,6 @@ function renderMarkdown(text) {
 
 const currentContext = ref({})
 
-// Update context based on app state
 watch([user, selectedJob, existingSubmission], () => {
   const ctx = {}
   if (user.value) ctx.role = user.value.role
@@ -228,7 +242,6 @@ watch([user, selectedJob, existingSubmission], () => {
   currentContext.value = ctx
 }, { deep: true })
 
-// Special handling for recruiter candidate selection
 function onRecruiterContextChange(newCtx) {
   currentContext.value = { ...currentContext.value, ...newCtx }
 }
@@ -236,26 +249,22 @@ function onRecruiterContextChange(newCtx) {
 async function handleNavigateFromChat(payload) {
   if (payload.type === 'JOB') {
     if (user.value.role === 'recruiter') {
-       // Switch recruiter dashboard to this job
        if (recruiterDashboardRef.value) {
          recruiterDashboardRef.value.onSelectJob(payload.data)
        }
     } else {
-       // Regular candidate navigation
        selectJob(payload.data)
     }
   } else if (payload.type === 'CANDIDATE') {
     if (user.value.role === 'recruiter') {
       const token = localStorage.getItem('token')
-      const jobRes = await fetch(`/jobs/${payload.data.job_id}`, {
+      const jobRes = await fetch(`/api/recruiter/jobs/${payload.data.job_id}`, {
          headers: { 'Authorization': `Bearer ${token}` }
       })
       if (jobRes.ok) {
         const jobData = await jobRes.json()
-        // 1. First switch the job view
         if (recruiterDashboardRef.value) {
           recruiterDashboardRef.value.onSelectJob(jobData)
-          // 2. Then select the specific candidate
           setTimeout(() => {
             if (recruiterDashboardRef.value) {
                recruiterDashboardRef.value.selectCandidate(payload.data)

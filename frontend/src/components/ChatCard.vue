@@ -10,6 +10,10 @@ const props = defineProps({
   id: {
     type: String,
     required: true
+  },
+  user: {
+    type: Object,
+    required: true
   }
 })
 
@@ -23,10 +27,11 @@ async function fetchData() {
   loading.value = true
   error.value = null
   const token = localStorage.getItem('token')
+  const role = props.user.role
   
   if (props.type === 'JOB') {
     try {
-      const res = await fetch(`/jobs/${props.id}`, {
+      const res = await fetch(`/api/${role}/jobs/${props.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.ok) {
@@ -38,23 +43,20 @@ async function fetchData() {
       error.value = 'Failed to load job'
     }
   } else {
-    // For CANDIDATE, try ranking_id first, then fallback to my-submission (if id is job_id)
+    // For CANDIDATE
     try {
-      let res = await fetch(`/dashboard/ranking/${props.id}`, {
+      let url = role === 'recruiter' 
+        ? `/api/recruiter/ranking/${props.id}`
+        : `/api/candidate/my-submission/${props.id}`
+        
+      let res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
+      
       if (res.ok) {
         data.value = await res.json()
       } else {
-        // Fallback for candidates who might only have access to my-submission by job_id
-        res = await fetch(`/analyze/my-submission/${props.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (res.ok) {
-          data.value = await res.json()
-        } else {
-          error.value = 'Candidate data not found'
-        }
+        error.value = 'Candidate data not found'
       }
     } catch (e) {
       error.value = 'Failed to load candidate'

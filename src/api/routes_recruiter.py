@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+from typing import List, Optional
+from fastapi import APIRouter, Depends, BackgroundTasks, Query
+
+from api.auth_models import User
+from api.deps import require_role
+from services.jobs import list_jobs, create_job, update_job, delete_job
+from services.rankings import list_candidate_rankings, trigger_re_evaluation, trigger_re_evaluation_all
+from api.routes_chat import chat_message, get_chat_history, ChatRequest, ChatResponse, ChatMessage
+from api.routes_dashboard import get_ranking
+
+router = APIRouter(prefix="/recruiter", tags=["recruiter"])
+
+# Jobs
+@router.get("/jobs")
+def recruiter_list_jobs(current_user: User = Depends(require_role("recruiter"))):
+    return list_jobs(current_user)
+
+@router.post("/jobs")
+def recruiter_create_job(title: str, description: str, current_user: User = Depends(require_role("recruiter"))):
+    return create_job(title, description, current_user)
+
+@router.patch("/jobs/{job_id}")
+def recruiter_update_job(job_id: str, title: Optional[str] = None, description: Optional[str] = None, current_user: User = Depends(require_role("recruiter"))):
+    return update_job(job_id, title, description, current_user)
+
+@router.delete("/jobs/{job_id}")
+def recruiter_delete_job(job_id: str, current_user: User = Depends(require_role("recruiter"))):
+    return delete_job(job_id, current_user)
+
+# Dashboard / Rankings
+@router.get("/rankings")
+def recruiter_list_rankings(
+    limit: int = Query(30),
+    sort: str = Query("overall_score"),
+    job_id: Optional[str] = Query(None),
+    current_user: User = Depends(require_role("recruiter")),
+):
+    rows = list_candidate_rankings(current_user, job_id=job_id, limit=limit, sort_by=sort)
+    return {"count": len(rows), "sort": sort, "items": rows}
+
+@router.get("/ranking/{ranking_id}")
+def recruiter_get_ranking(ranking_id: str, current_user: User = Depends(require_role("recruiter"))):
+    return get_ranking(ranking_id, current_user)
+
+# Evaluation
+@router.post("/re-evaluate/{ranking_id}")
+async def recruiter_re_evaluate(
+    ranking_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_role("recruiter")),
+):
+    return await trigger_re_evaluation(ranking_id, current_user, background_tasks)
+
+@router.post("/re-evaluate-all/{job_id}")
+async def recruiter_re_evaluate_all(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_role("recruiter")),
+):
+    return await trigger_re_evaluation_all(job_id, current_user, background_tasks)
+
+@router.get("/resume/{ranking_id}")
+async def recruiter_get_resume(ranking_id: str, current_user: User = Depends(require_role("recruiter"))):
+    from api.routes_analyze import get_resume_file
+    return await get_resume_file(ranking_id, current_user)
+
+# Chat
+@router.post("/chat/message", response_model=ChatResponse)
+async def recruiter_chat_message(req: ChatRequest, current_user: User = Depends(require_role("recruiter"))):
+    return await chat_message(req, current_user)
+
+@router.get("/chat/history", response_model=List[ChatMessage])
+async def recruiter_chat_history(current_user: User = Depends(require_role("recruiter"))):
+    return await get_chat_history(current_user)
+
+@router.post("/chat/clear")
+async def recruiter_clear_chat(current_user: User = Depends(require_role("recruiter"))):
+    from api.routes_chat import clear_chat
+    return await clear_chat(current_user)

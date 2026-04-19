@@ -24,6 +24,9 @@ const history = ref([])
 const isTyping = ref(false)
 const scrollRef = ref(null)
 
+// Role-based API base
+const apiBase = computed(() => `/api/${props.user.role}/chat`)
+
 // Refined context for backend
 const filteredContext = computed(() => {
   const ctx = { ...props.context }
@@ -44,7 +47,6 @@ const displayContext = computed(() => {
 
 /**
  * Parses message content for [[TYPE:ID]] markers.
- * Trims text segments to avoid phantom gaps.
  */
 function parseSegments(content) {
   if (!content) return []
@@ -77,7 +79,7 @@ function parseSegments(content) {
 async function loadHistory() {
   try {
     const token = localStorage.getItem('token')
-    const res = await fetch('/chat/history', {
+    const res = await fetch(`${apiBase.value}/history`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (res.ok) {
@@ -102,7 +104,7 @@ async function clearChat() {
   
   try {
     const token = localStorage.getItem('token')
-    const res = await fetch('/chat/clear', {
+    const res = await fetch(`${apiBase.value}/clear`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -131,7 +133,7 @@ async function sendMessage() {
   
   try {
     const token = localStorage.getItem('token')
-    const res = await fetch('/chat/message', {
+    const res = await fetch(`${apiBase.value}/message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -238,6 +240,7 @@ onMounted(() => {
                   v-else-if="seg.type === 'card'" 
                   :type="seg.cardType" 
                   :id="seg.id" 
+                  :user="user"
                   @navigate="onCardNavigate" 
                 />
               </template>

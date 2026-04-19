@@ -38,14 +38,16 @@ async function fetchCandidates() {
   
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch(`/dashboard/rankings?job_id=${selectedJob.value.id}`, {
+    const res = await fetch(`/api/recruiter/rankings?job_id=${selectedJob.value.id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     const data = await res.json()
     if (res.ok) {
-      candidates.value = data.items
+      // API returns { count, sort, items }
+      const items = data.items || []
+      candidates.value = items
       if (selectedCandidate.value) {
-        const updated = data.items.find(c => c.ranking_id === selectedCandidate.value.ranking_id)
+        const updated = items.find(c => c.ranking_id === selectedCandidate.value.ranking_id)
         if (updated) selectedCandidate.value = updated
       }
     } else {
@@ -59,7 +61,7 @@ async function fetchCandidates() {
 async function reEvaluate(rankingId) {
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch(`/analyze/re-evaluate/${rankingId}`, {
+    const res = await fetch(`/api/recruiter/re-evaluate/${rankingId}`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -76,7 +78,7 @@ async function reEvaluateAll() {
   
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch(`/analyze/re-evaluate-all/${selectedJob.value.id}`, {
+    const res = await fetch(`/api/recruiter/re-evaluate-all/${selectedJob.value.id}`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -90,7 +92,7 @@ async function reEvaluateAll() {
 
 function downloadResume(rankingId) {
   const token = localStorage.getItem('token')
-  window.open(`/analyze/resume/${rankingId}?token=${token}`, '_blank')
+  window.open(`/api/recruiter/resume/${rankingId}?token=${token}`, '_blank')
 }
 
 function onSelectJob(job) {
@@ -122,7 +124,7 @@ function startEditJob() {
 async function saveJobUpdate() {
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch(`/jobs/${selectedJob.value.id}`, {
+    const res = await fetch(`/api/recruiter/jobs/${selectedJob.value.id}`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',

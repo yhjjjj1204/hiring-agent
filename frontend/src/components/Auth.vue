@@ -2,8 +2,7 @@
 import { ref } from 'vue'
 import { Lock, UserCircle, UserSearch } from 'lucide-vue-next'
 
-const props = defineProps(['modelValue'])
-const emit = defineEmits(['update:modelValue', 'authenticated'])
+const emit = defineEmits(['authenticated'])
 
 const isLogin = ref(true)
 const username = ref('')
@@ -13,21 +12,24 @@ const status = ref('')
 const statusClass = ref('')
 
 async function submit() {
-  const url = isLogin.value ? '/auth/login' : '/auth/register'
-  const payload = {
-    username: username.value,
-    password: password.value,
-    role: role.value
-  }
-
+  status.value = ''
   try {
+    const url = isLogin.value ? '/api/auth/login' : '/api/auth/register'
+    const body = isLogin.value 
+      ? `username=${encodeURIComponent(username.value)}&password=${encodeURIComponent(password.value)}`
+      : JSON.stringify({ username: username.value, password: password.value, role: role.value })
+    
+    const headers = {
+      'Content-Type': isLogin.value ? 'application/x-www-form-urlencoded' : 'application/json'
+    }
+
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers,
+      body
     })
+    
     const data = await res.json()
-
     if (!res.ok) {
       status.value = data.detail || 'Authentication failed'
       statusClass.value = 'err'
@@ -36,7 +38,7 @@ async function submit() {
 
     if (isLogin.value) {
       localStorage.setItem('token', data.access_token)
-      const userRes = await fetch(`/auth/me?token=${data.access_token}`)
+      const userRes = await fetch(`/api/auth/me?token=${data.access_token}`)
       const userData = await userRes.json()
       localStorage.setItem('user', JSON.stringify(userData))
       emit('authenticated', userData)

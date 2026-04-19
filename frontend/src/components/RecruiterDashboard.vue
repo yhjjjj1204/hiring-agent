@@ -9,7 +9,10 @@ import {
   Download, 
   RefreshCw,
   CheckCircle,
-  Users
+  Users,
+  Bot,
+  Brain,
+  Edit3
 } from 'lucide-vue-next'
 import JobManager from './JobManager.vue'
 import CandidateSnapshot from './CandidateSnapshot.vue'
@@ -231,7 +234,15 @@ defineExpose({ reset, onSelectJob, selectCandidate })
         <div v-if="!isEditingJob">
           <div class="preview-header">
             <label>Job Requirements</label>
-            <button class="mini secondary" @click="startEditJob">Edit Profile</button>
+            <button class="mini secondary" @click="startEditJob"><Edit3 :size="14" /> Edit Profile</button>
+          </div>
+          <div v-if="selectedJob.summary" class="ai-summary-box">
+            <div class="summary-label"><Bot :size="12" /> AI Summary</div>
+            <p v-if="selectedJob.summary === 'generating'" class="generating-text">
+              <Brain :size="14" class="spin-slow" />
+              AI summary is generating...
+            </p>
+            <p v-else>{{ selectedJob.summary }}</p>
           </div>
           <div :class="['description-content', { 'expanded': isJobExpanded }]">
             <div class="markdown-body" v-html="renderMarkdown(selectedJob.description)"></div>
@@ -374,6 +385,37 @@ defineExpose({ reset, onSelectJob, selectCandidate })
 .description-content { max-height: 150px; overflow: hidden; position: relative; }
 .description-content.expanded { max-height: none; }
 .text-btn { font-size: 0.85rem; color: var(--accent); cursor: pointer; background: none; border: none; font-weight: 700; padding: 0.5rem 0; }
+
+.ai-summary-box {
+  background: rgba(var(--accent-rgb), 0.05);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+.summary-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+.ai-summary-box p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  font-style: italic;
+  color: white;
+}
+.generating-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted) !important;
+}
 
 .form-grid { display: flex; flex-direction: column; gap: 1.25rem; }
 .form-actions { margin-top: 1.5rem; display: flex; gap: 0.5rem; }

@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
@@ -79,19 +79,19 @@ def get_application_details_tool(user: User):
             return {"error": str(e)}
     return StructuredTool.from_function(func=tool_func, name="get_application_details", description="Get status of your application for a specific job")
 
-def get_create_job_tool(user: User):
+def get_create_job_tool(user: User, background_tasks: BackgroundTasks):
     def tool_func(title: str, description: str):
         """Create a new job position. Only available for recruiters. 
         Requires a 'title' and a 'description' (can be markdown)."""
-        return create_job(title, description, user)
+        return create_job(title, description, user, background_tasks)
     return StructuredTool.from_function(func=tool_func, name="create_job", description="Post a new job position")
 
-def get_update_job_tool(user: User):
+def get_update_job_tool(user: User, background_tasks: BackgroundTasks):
     def tool_func(job_id: str, title: Optional[str] = None, description: Optional[str] = None):
         """Update an existing job position. Only available for recruiters.
         Provide the job_id and at least one field to update."""
         from services.jobs import update_job
-        return update_job(job_id, title, description, user)
+        return update_job(job_id, title, description, user, background_tasks)
     return StructuredTool.from_function(func=tool_func, name="update_job", description="Update an existing job position")
 
 def get_delete_job_tool(user: User):
@@ -154,6 +154,7 @@ import json
 @router.post("/message")
 async def chat_message(
     req: ChatRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user)
 ):
     async def event_generator():
@@ -168,8 +169,8 @@ async def chat_message(
             tools.extend([
                 get_candidate_rankings_tool(current_user),
                 get_candidate_details_tool(current_user),
-                get_create_job_tool(current_user),
-                get_update_job_tool(current_user),
+                get_create_job_tool(current_user, background_tasks),
+                get_update_job_tool(current_user, background_tasks),
                 get_delete_job_tool(current_user),
                 get_re_evaluate_tool(current_user),
                 get_re_evaluate_all_tool(current_user)

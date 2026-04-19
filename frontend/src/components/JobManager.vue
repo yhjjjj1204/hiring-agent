@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Plus, X, Briefcase, ChevronRight } from 'lucide-vue-next'
+import { Plus, X, Briefcase, ChevronRight, Bot, Brain } from 'lucide-vue-next'
 
 const emit = defineEmits(['select-job'])
 
@@ -94,7 +94,17 @@ onMounted(fetchJobs)
           <div class="status-badge-outline ok">Active</div>
         </div>
         <div class="job-card-preview">
-           {{ j.description.split('\n')[0].substring(0, 120) }}...
+           <template v-if="j.summary">
+             <div class="ai-summary-indicator"><Bot :size="12" /> AI Summary</div>
+             <div v-if="j.summary === 'generating'" class="generating-text-small">
+               <Brain :size="12" class="spin-slow" />
+               AI summary is generating...
+             </div>
+             <div v-else>{{ j.summary }}</div>
+           </template>
+           <template v-else>
+             {{ j.description.split('\n')[0].substring(0, 120) }}...
+           </template>
         </div>
         <div class="job-card-footer">
           <span class="job-card-type">Corporate</span>
@@ -123,6 +133,29 @@ onMounted(fetchJobs)
 .title-with-icon { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.2rem; }
 .title-icon { color: var(--accent); opacity: 0.8; }
 .title-with-icon h4 { margin: 0; }
+
+.ai-summary-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+
+.generating-text-small {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.spin-slow { animation: spin 3s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .job-card-action { display: flex; align-items: center; gap: 0.25rem; }
 </style>

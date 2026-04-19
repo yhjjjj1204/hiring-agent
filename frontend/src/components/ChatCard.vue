@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Briefcase, User, ExternalLink, Loader2, AlertCircle } from 'lucide-vue-next'
+import { Briefcase, User, ExternalLink, Loader2, AlertCircle, Brain } from 'lucide-vue-next'
 
 const props = defineProps({
   type: {
@@ -97,9 +97,23 @@ onMounted(fetchData)
             <span class="entity-title">{{ type === 'JOB' ? data.title : data.candidate_ref }}</span>
             <div class="nav-indicator"><ExternalLink :size="12" /></div>
           </div>
-          <p class="summary-line">
-            {{ type === 'JOB' ? data.description.substring(0, 60) : (data.summary ? data.summary.substring(0, 60) : 'Application received') }}...
-          </p>
+          <div class="summary-line">
+            <template v-if="type === 'JOB'">
+              <template v-if="data.summary">
+                <div v-if="data.summary === 'generating'" class="generating-text-mini">
+                  <Brain :size="10" class="spin-slow" />
+                  Generating...
+                </div>
+                <div v-else class="summary-text">{{ data.summary.substring(0, 100) }}{{ data.summary.length > 100 ? '...' : '' }}</div>
+              </template>
+              <template v-else>
+                {{ data.description.substring(0, 80) }}...
+              </template>
+            </template>
+            <template v-else>
+              {{ data.summary ? data.summary.substring(0, 80) + '...' : 'Application received' }}
+            </template>
+          </div>
           <div class="footer-line">
              <span v-if="type === 'CANDIDATE'" class="score-pill">
                <template v-if="data.status === 'ready'">{{ data.overall_score.toFixed(0) }}% Match</template>
@@ -203,6 +217,21 @@ onMounted(fetchData)
   margin: 0;
 }
 
+.summary-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.generating-text-mini {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
 .footer-line {
   display: flex;
   justify-content: space-between;
@@ -229,6 +258,7 @@ onMounted(fetchData)
   color: var(--border);
 }
 
+.spin-slow { animation: spin 3s linear infinite; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>

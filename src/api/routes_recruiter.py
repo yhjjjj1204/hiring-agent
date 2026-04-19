@@ -10,6 +10,16 @@ from services.rankings import list_candidate_rankings, trigger_re_evaluation, tr
 from api.routes_chat import chat_message, get_chat_history, ChatRequest, ChatResponse, ChatMessage
 from api.routes_dashboard import get_ranking
 
+from pydantic import BaseModel
+
+class JobCreate(BaseModel):
+    title: str
+    description: str
+
+class JobUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+
 router = APIRouter(prefix="/recruiter", tags=["recruiter"])
 
 # Jobs
@@ -22,12 +32,22 @@ def recruiter_get_job(job_id: str, current_user: User = Depends(require_role("re
     return get_job(job_id)
 
 @router.post("/jobs")
-def recruiter_create_job(title: str, description: str, current_user: User = Depends(require_role("recruiter"))):
-    return create_job(title, description, current_user)
+def recruiter_create_job(
+    job: JobCreate,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_role("recruiter"))
+):
+    return create_job(job.title, job.description, current_user, background_tasks)
 
 @router.patch("/jobs/{job_id}")
-def recruiter_update_job(job_id: str, title: Optional[str] = None, description: Optional[str] = None, current_user: User = Depends(require_role("recruiter"))):
-    return update_job(job_id, title, description, current_user)
+def recruiter_update_job(
+    job_id: str,
+    job: JobUpdate,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_role("recruiter"))
+):
+    return update_job(job_id, job.title, job.description, current_user, background_tasks)
+
 
 @router.delete("/jobs/{job_id}")
 def recruiter_delete_job(job_id: str, current_user: User = Depends(require_role("recruiter"))):
@@ -71,9 +91,13 @@ async def recruiter_get_resume(ranking_id: str, current_user: User = Depends(req
     return await get_resume_file(ranking_id, current_user)
 
 # Chat
-@router.post("/chat/message", response_model=ChatResponse)
-async def recruiter_chat_message(req: ChatRequest, current_user: User = Depends(require_role("recruiter"))):
-    return await chat_message(req, current_user)
+@router.post("/chat/message")
+async def recruiter_chat_message(
+    req: ChatRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_role("recruiter"))
+):
+    return await chat_message(req, background_tasks, current_user)
 
 @router.get("/chat/history", response_model=List[ChatMessage])
 async def recruiter_chat_history(current_user: User = Depends(require_role("recruiter"))):

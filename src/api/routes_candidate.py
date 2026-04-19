@@ -54,9 +54,13 @@ def get_candidate_submission(job_id: str, current_user: User = Depends(require_r
         raise e
 
 # Chat
-@router.post("/chat/message", response_model=ChatResponse)
-async def candidate_chat_message(req: ChatRequest, current_user: User = Depends(require_role("candidate"))):
-    return await chat_message(req, current_user)
+@router.post("/chat/message")
+async def candidate_chat_message(
+    req: ChatRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_role("candidate"))
+):
+    return await chat_message(req, background_tasks, current_user)
 
 @router.get("/chat/history", response_model=List[ChatMessage])
 async def candidate_chat_history(current_user: User = Depends(require_role("candidate"))):

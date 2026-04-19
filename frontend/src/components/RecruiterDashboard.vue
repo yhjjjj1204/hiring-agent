@@ -288,7 +288,11 @@ defineExpose({ reset, onSelectJob, selectCandidate })
             </div>
           </div>
         </div>
-        <p v-else-if="!status" class="empty-state glass-card"><Users :size="24" class="empty-icon" />No applications received yet.</p>
+        <div v-else-if="!status" class="empty-state-container glass-card">
+          <Users :size="48" class="empty-icon" />
+          <h4>No applications yet</h4>
+          <p>When candidates apply for this position, they will appear here for your review.</p>
+        </div>
       </div>
     </div>
 
@@ -420,6 +424,29 @@ defineExpose({ reset, onSelectJob, selectCandidate })
 .status-pill.ready { color: var(--ok); border-color: var(--ok); }
 .status-pill.evaluating { color: var(--accent); border-color: var(--accent); }
 .status-pill.large { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+
+.empty-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--muted);
+}
+.empty-icon {
+  margin-bottom: 1rem;
+  opacity: 0.3;
+}
+.empty-state-container h4 {
+  margin: 0 0 0.5rem 0;
+  color: white;
+}
+.empty-state-container p {
+  margin: 0;
+  font-size: 0.9rem;
+  max-width: 300px;
+}
 
 .spin { animation: spin 2s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

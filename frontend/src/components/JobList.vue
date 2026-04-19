@@ -59,8 +59,10 @@ onMounted(fetchJobs)
       </div>
     </div>
 
-    <div v-else-if="!status" class="empty-state glass-card">
-      No open positions at the moment.
+    <div v-else-if="!status" class="empty-state-container glass-card">
+      <Briefcase :size="48" class="empty-icon" />
+      <h4>No open positions</h4>
+      <p>There are no active job listings at this time. Please check back later for new opportunities.</p>
     </div>
     
     <p v-if="status" class="err-msg">{{ status }}</p>
@@ -78,7 +80,29 @@ onMounted(fetchJobs)
 
 .job-card-action { display: flex; align-items: center; gap: 0.25rem; }
 
-.empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+.empty-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 2rem;
+  text-align: center;
+  color: var(--muted);
+}
+.empty-icon {
+  margin-bottom: 1rem;
+  opacity: 0.3;
+}
+.empty-state-container h4 {
+  margin: 0 0 0.5rem 0;
+  color: white;
+}
+.empty-state-container p {
+  margin: 0;
+  font-size: 0.9rem;
+  max-width: 320px;
+}
+
 .err-msg { color: var(--err); font-weight: 600; margin-top: 2rem; text-align: center; }
 
 @media (max-width: 600px) {

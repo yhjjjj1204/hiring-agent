@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { 
   ChevronLeft, 
@@ -34,6 +35,9 @@ const status = ref('')
 const statusClass = ref('')
 const isWorking = ref(false)
 const errorOutput = ref('')
+
+const route = useRoute()
+const router = useRouter()
 
 // Candidate analysis tracking
 const currentRankingId = ref(null)
@@ -77,9 +81,9 @@ async function runAnalysis() {
       body: fd,
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    
-    const data = await res.json()
-    
+
+    let data = await res.json()
+
     if (!res.ok) {
       status.value = data.detail || ("HTTP " + res.status)
       statusClass.value = "err"
@@ -87,12 +91,11 @@ async function runAnalysis() {
       isWorking.value = false
       return
     }
-    
+
     currentRankingId.value = data.ranking_id
     status.value = "Application submitted! AI agents are summarizing your data..."
     statusClass.value = "ok"
-    
-    // Refresh local state
+
     await fetchMySubmission()
     startPollingCandidateStatus()
   } catch (e) {
@@ -181,36 +184,16 @@ function logout() {
   user.value = null
   selectedJob.value = null
   if (candidatePollInterval) clearInterval(candidatePollInterval)
+  router.push('/')
 }
 
 function selectJob(job) {
-  selectedJob.value = job
-  currentArrangedResume.value = null
-  currentRankingId.value = null
-  existingSubmission.value = null
-  showReSubmitForm.value = false
-  requirements.github = ''
-  requirements.scholarUrl = ''
-  requirements.nameOverride = ''
-  
-  if (user.value?.role === 'candidate') {
-    fetchMySubmission()
-  }
-  
-  if (recruiterDashboardRef.value) {
-    recruiterDashboardRef.value.selectedCandidate = null
-  }
+  if (selectedJob.value?.id === job.id) return
+  router.push(`/jobs/${job.id}`)
 }
 
 function goHome() {
-  selectedJob.value = null
-  if (recruiterDashboardRef.value) {
-    recruiterDashboardRef.value.reset()
-  }
-  status.value = ''
-  statusClass.value = ''
-  errorOutput.value = ''
-  if (candidatePollInterval) clearInterval(candidatePollInterval)
+  router.push('/')
 }
 
 onMounted(() => {
@@ -246,32 +229,42 @@ function onRecruiterContextChange(newCtx) {
   currentContext.value = { ...currentContext.value, ...newCtx }
 }
 
+async function syncStateWithRoute() {
+  if (!user.value) return
+  
+  const { job_id, candidate_id } = route.params
+  const role = user.value.role
+
+  if (job_id) {
+    if (!selectedJob.value || selectedJob.value.id !== job_id) {
+      const token = localStorage.getItem('token')
+      try {
+        const res = await fetch(`/api/${role}/jobs/${job_id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const jobData = await res.json()
+          selectedJob.value = jobData
+          if (role === 'candidate') fetchMySubmission()
+        } else if (res.status === 404) {
+          router.push({ name: 'NotFound', params: { pathMatch: route.path.split('/').slice(1) } })
+        }
+      } catch (e) { console.error("Router job fetch failed", e) }
+    }
+  } else {
+    selectedJob.value = null
+  }
+}
+
+// Watch both user and route params for robust deep-linking
+watch([user, () => route.params], syncStateWithRoute, { immediate: true, deep: true })
+
 async function handleNavigateFromChat(payload) {
   if (payload.type === 'JOB') {
-    if (user.value.role === 'recruiter') {
-       if (recruiterDashboardRef.value) {
-         recruiterDashboardRef.value.onSelectJob(payload.data)
-       }
-    } else {
-       selectJob(payload.data)
-    }
+    router.push(`/jobs/${payload.id}`)
   } else if (payload.type === 'CANDIDATE') {
     if (user.value.role === 'recruiter') {
-      const token = localStorage.getItem('token')
-      const jobRes = await fetch(`/api/recruiter/jobs/${payload.data.job_id}`, {
-         headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (jobRes.ok) {
-        const jobData = await jobRes.json()
-        if (recruiterDashboardRef.value) {
-          recruiterDashboardRef.value.onSelectJob(jobData)
-          setTimeout(() => {
-            if (recruiterDashboardRef.value) {
-               recruiterDashboardRef.value.selectCandidate(payload.data)
-            }
-          }, 50)
-        }
-      }
+      router.push(`/jobs/${payload.data.job_id}/candidates/${payload.id}`)
     }
   }
 }
@@ -304,13 +297,15 @@ async function handleNavigateFromChat(payload) {
         <Auth @authenticated="onAuthenticated" />
       </div>
 
+      <router-view v-else-if="route.name === 'NotFound'" />
+
       <div v-else-if="user.role === 'candidate'" class="candidate-view">
         <div v-if="!selectedJob">
           <JobList @select-job="selectJob" />
         </div>
         <div v-else class="job-detail-view">
           <div class="job-header-bar">
-            <button class="mini secondary" @click="selectedJob = null">
+            <button class="mini secondary" @click="goHome">
               <ChevronLeft :size="14" />
               Back to Jobs
             </button>
@@ -327,15 +322,12 @@ async function handleNavigateFromChat(payload) {
             </button>
           </div>
 
-          <!-- NEW SUBMISSION OR RE-SUBMISSION FORM -->
           <div v-if="!existingSubmission || showReSubmitForm" class="submission-section glass-card">
             <div class="section-title">
               <h3>{{ existingSubmission ? 'Update Application' : 'Apply for this position' }}</h3>
               <button v-if="existingSubmission" class="text-btn err" @click="showReSubmitForm = false">Cancel</button>
             </div>
-
             <ResumeUpload v-model="file" />
-            
             <div class="background-inputs">
               <h3>External Profiles <small>(Optional)</small></h3>
               <div class="inputs-grid">
@@ -353,7 +345,6 @@ async function handleNavigateFromChat(payload) {
                 </div>
               </div>
             </div>
-
             <div class="actions">
               <button type="button" @click="runAnalysis" :disabled="isWorking">
                 {{ existingSubmission ? 'Update Submission' : 'Submit Application' }}
@@ -363,7 +354,6 @@ async function handleNavigateFromChat(payload) {
             </div>
           </div>
 
-          <!-- VIEW EXISTING SUBMISSION -->
           <div v-else class="submission-view">
             <div class="submission-status-bar glass-card">
               <div class="status-info">
@@ -376,7 +366,6 @@ async function handleNavigateFromChat(payload) {
               </div>
               <button class="secondary" @click="showReSubmitForm = true" :disabled="isWorking">Update Application</button>
             </div>
-
             <div v-if="currentArrangedResume" class="arranged-data-card glass-card">
               <div class="card-header-with-hint">
                 <h3>Structured Profile</h3>
@@ -384,13 +373,11 @@ async function handleNavigateFromChat(payload) {
               </div>
               <CandidateSnapshot :arranged-resume="currentArrangedResume" />
             </div>
-            
             <div v-else-if="isWorking" class="evaluating-card glass-card">
               <Loader2 class="loader spin" :size="32" />
               <p>Evaluating submission...</p>
             </div>
           </div>
-
           <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
         </div>
       </div>

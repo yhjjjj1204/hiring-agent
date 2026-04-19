@@ -92,6 +92,12 @@ def invoke_graph(payload: dict):
 # Catch-all route to serve index.html for frontend routing
 @app.get("/{full_path:path}", include_in_schema=False)
 def catch_all(request: Request, full_path: str):
+    # Skip if it looks like an API call (already handled by router if valid)
+    if full_path.startswith("api/"):
+        return HTMLResponse(f"API Route Not Found: {full_path}", status_code=404)
+        
+    # If the path looks like a file (has an extension), don't serve index.html
     if "." in full_path.split("/")[-1]:
-        return HTMLResponse(f"Not Found: {full_path}", status_code=404)
+        return HTMLResponse(f"File Not Found: {full_path}", status_code=404)
+        
     return HTMLResponse(_read_index())

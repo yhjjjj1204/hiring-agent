@@ -95,6 +95,7 @@ def create_job(title: str, description: str, current_user: User, background_task
         "created_at": _utcnow(),
     }
     db.jobs.insert_one(job_doc)
+    job_doc.pop("_id", None)
     return job_doc
 
 def update_job(job_id: str, title: Optional[str], description: Optional[str], current_user: User, background_tasks: Optional[BackgroundTasks] = None) -> dict[str, Any]:

@@ -191,11 +191,11 @@ onUnmounted(() => {
     <!-- 2. CANDIDATE LIST VIEW (FOR A JOB) -->
     <div v-else-if="!selectedCandidate" class="results-page">
       <div class="job-header-bar">
-        <button class="mini secondary" @click="selectedJob = null">← Back</button>
+        <button class="mini secondary" @click="selectedJob = null">
+          <ChevronLeft :size="14" />
+          Back
+        </button>
         <h2 class="job-title">{{ selectedJob.title }}</h2>
-        <div class="header-actions">
-          <button class="mini secondary warn" @click="reEvaluateAll">Re-evaluate All</button>
-        </div>
       </div>
 
       <!-- Job Preview/Edit Section -->
@@ -235,6 +235,10 @@ onUnmounted(() => {
       <div class="candidates-section">
         <div class="section-header">
           <h3>Applications <span class="count-badge">{{ candidates.length }}</span></h3>
+          <button v-if="candidates.length" class="mini secondary warn" @click="reEvaluateAll">
+            <RotateCw :size="14" />
+            Re-evaluate All
+          </button>
         </div>
 
         <p v-if="status" class="err-banner">{{ status }}</p>
@@ -284,7 +288,7 @@ onUnmounted(() => {
     <div v-else class="candidate-page">
       <div class="page-header">
         <div class="title-area">
-          <button class="mini secondary" @click="selectedCandidate = null">← Applications</button>
+          <button class="mini secondary" @click="selectedCandidate = null">← Back</button>
           <div class="candidate-title">
             <h2 class="cand-page-name">{{ selectedCandidate.candidate_ref }}</h2>
             <div :class="['status-pill large', selectedCandidate.status]">
@@ -464,11 +468,11 @@ onUnmounted(() => {
 
 /* Individual Page Alignment */
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; }
-.title-area { display: flex; align-items: center; gap: 1.5rem; }
-.candidate-title { display: flex; align-items: center; gap: 1.25rem; }
-.cand-page-name { margin: 0; line-height: 1; display: flex; align-items: center; font-size: 1.8rem; }
+.title-area { display: flex; align-items: center; gap: 1.25rem; }
+.candidate-title { display: flex; align-items: center; gap: 1rem; }
+.cand-page-name { margin: 0; line-height: 1; display: flex; align-items: center; font-size: 1.75rem; }
 
-.candidate-meta-bar { display: flex; gap: 4rem; padding: 1.25rem 2rem; margin-bottom: 2rem; }
+.candidate-meta-bar { display: flex; gap: 4rem; padding: 1rem 1.5rem; margin-bottom: 2rem; }
 .meta-item { display: flex; flex-direction: column; gap: 0.25rem; }
 .meta-label { font-size: 0.65rem; font-weight: 800; color: var(--muted); text-transform: uppercase; }
 .meta-item a { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
@@ -511,7 +515,14 @@ onUnmounted(() => {
 .detail-rationale { font-size: 0.95rem; color: var(--muted); line-height: 1.6; }
 
 .candidates-section { margin-top: 3.5rem; }
-.section-header { margin-bottom: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+.section-header { 
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem; 
+  border-bottom: 1px solid var(--border); 
+  padding-bottom: 1rem; 
+}
 .section-header h3 { margin: 0; font-size: 1.4rem; }
 
 .count-badge { background: var(--accent); color: white; padding: 0.1rem 0.6rem; border-radius: 4px; font-size: 0.8rem; vertical-align: middle; margin-left: 0.5rem; }

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
-import { MessageSquare, X, Send, Trash2, Bot, User, Minus, Maximize2, Minimize2 } from 'lucide-vue-next'
+import { MessageSquare, X, Send, Trash2, Bot, User, Minus, Maximize2, Minimize2, Brain } from 'lucide-vue-next'
 import { marked } from 'marked'
 import ChatCard from './ChatCard.vue'
 
@@ -21,7 +21,7 @@ const isOpen = ref(false)
 const isFullScreen = ref(false)
 const message = ref('')
 const history = ref([])
-const isTyping = ref(false)
+const typingStatus = ref('')
 const scrollRef = ref(null)
 
 // Resizable state
@@ -153,7 +153,7 @@ async function clearChat() {
 }
 
 async function sendMessage() {
-  if (!message.value.trim() || isTyping.value) return
+  if (!message.value.trim() || typingStatus.value) return
 
   const userMsg = { role: 'user', content: message.value, timestamp: new Date().toISOString() }
   history.value.push(userMsg)
@@ -161,7 +161,7 @@ async function sendMessage() {
   message.value = ''
   
   scrollToBottom()
-  isTyping.value = true
+  typingStatus.value = 'Thinking...'
   
   try {
     const token = localStorage.getItem('token')
@@ -177,19 +177,40 @@ async function sendMessage() {
       })
     })
     
-    if (res.ok) {
-      const data = await res.json()
-      history.value.push({ 
-        role: 'assistant', 
-        content: data.reply,
-        timestamp: new Date().toISOString()
-      })
-    } else {
-      history.value.push({ 
-        role: 'assistant', 
-        content: "Sorry, I'm having trouble connecting to the AI service right now.",
-        timestamp: new Date().toISOString()
-      })
+    if (!res.ok) throw new Error("Failed to connect to assistant")
+    
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.substring(6))
+            if (data.status) {
+              typingStatus.value = data.status
+            } else if (data.reply) {
+              history.value.push({ 
+                role: 'assistant', 
+                content: data.reply,
+                timestamp: new Date().toISOString()
+              })
+            } else if (data.error) {
+              throw new Error(data.error)
+            }
+          } catch (e) {
+            console.error("Failed to parse SSE data", e)
+          }
+        }
+      }
     }
   } catch (e) {
     history.value.push({ 
@@ -198,7 +219,7 @@ async function sendMessage() {
       timestamp: new Date().toISOString()
     })
   } finally {
-    isTyping.value = false
+    typingStatus.value = ''
     scrollToBottom()
   }
 }
@@ -288,13 +309,16 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        <div v-if="isTyping" class="message-group assistant">
+        <div v-if="typingStatus" class="message-group assistant">
           <div class="sender-header">
             <Bot :size="14" class="header-icon" />
             <span class="sender-label">AI Assistant</span>
           </div>
-          <div class="message-bubble assistant">
-            <div class="message-content typing">...</div>
+          <div class="message-bubble assistant thinking-bubble">
+            <div class="message-content typing-status">
+              <Brain :size="14" class="spin-slow" />
+              <span>{{ typingStatus }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -310,7 +334,7 @@ onMounted(() => {
 
       <form class="chat-input" @submit.prevent="sendMessage">
         <input v-model="message" placeholder="Ask me anything..." @keydown.enter.prevent="sendMessage" />
-        <button type="submit" :disabled="!message.trim() || isTyping">
+        <button type="submit" :disabled="!message.trim() || !!typingStatus">
           <Send :size="16" />
         </button>
       </form>
@@ -446,6 +470,26 @@ onMounted(() => {
 .chat-input input { flex-grow: 1; background: var(--bg); border: 1px solid var(--border); padding: 0.5rem 0.75rem; border-radius: 4px; color: white; font-size: 0.9rem; }
 .chat-input button { width: 36px; height: 36px; padding: 0; flex-shrink: 0; }
 
+.thinking-bubble {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--muted) !important;
+  border: 1px dashed var(--border) !important;
+}
+.typing-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-style: italic;
+  font-size: 0.8rem;
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.spin-slow { animation: spin 3s linear infinite; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>

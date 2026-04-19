@@ -148,38 +148,42 @@ async def get_chat_history(current_user: User = Depends(get_current_user)):
         msg.pop("_id", None)
     return history
 
-@router.post("/message", response_model=ChatResponse)
+from fastapi.responses import StreamingResponse
+import json
+
+@router.post("/message")
 async def chat_message(
     req: ChatRequest,
     current_user: User = Depends(get_current_user)
 ):
-    db = get_database()
-    model = _get_chat_model()
-    
-    tools = [
-        get_job_list_tool(current_user),
-        get_job_details_tool(current_user)
-    ]
-    if current_user.role == "recruiter":
-        tools.extend([
-            get_candidate_rankings_tool(current_user),
-            get_candidate_details_tool(current_user),
-            get_create_job_tool(current_user),
-            get_update_job_tool(current_user),
-            get_delete_job_tool(current_user),
-            get_re_evaluate_tool(current_user),
-            get_re_evaluate_all_tool(current_user)
-        ])
-    elif current_user.role == "candidate":
-        tools.extend([
-            get_my_applications_tool(current_user),
-            get_application_details_tool(current_user)
-        ])
-    
-    model_with_tools = model.bind_tools(tools)
-    raw_history = list(db.chat_history.find({"username": current_user.username}).sort("timestamp", 1))
-    
-    system_prompt = f"""You are a helpful AI assistant for the Hiring Agent platform.
+    async def event_generator():
+        db = get_database()
+        model = _get_chat_model()
+        
+        tools = [
+            get_job_list_tool(current_user),
+            get_job_details_tool(current_user)
+        ]
+        if current_user.role == "recruiter":
+            tools.extend([
+                get_candidate_rankings_tool(current_user),
+                get_candidate_details_tool(current_user),
+                get_create_job_tool(current_user),
+                get_update_job_tool(current_user),
+                get_delete_job_tool(current_user),
+                get_re_evaluate_tool(current_user),
+                get_re_evaluate_all_tool(current_user)
+            ])
+        elif current_user.role == "candidate":
+            tools.extend([
+                get_my_applications_tool(current_user),
+                get_application_details_tool(current_user)
+            ])
+        
+        model_with_tools = model.bind_tools(tools)
+        raw_history = list(db.chat_history.find({"username": current_user.username}).sort("timestamp", 1))
+        
+        system_prompt = f"""You are a helpful AI assistant for the Hiring Agent platform.
 User role: {current_user.role}.
 Current page context: {req.context or 'General'}.
 
@@ -199,45 +203,50 @@ GUIDELINES:
    - RECRUITERS: You can manage the entire job lifecycle, including posting new roles, updating requirements, and removing positions. You also have access to all candidate evaluations, allowing you to review detailed scores, compare rankings, and trigger re-evaluations of resumes when necessary.
    - CANDIDATES: You can view your personal application history and check the current status of your submissions for various roles.
 """
-    messages = [SystemMessage(content=system_prompt)]
-    for m in raw_history:
-        if m["role"] == "user":
-            messages.append(HumanMessage(content=m["content"]))
-        else:
-            messages.append(AIMessage(content=m["content"]))
-    messages.append(HumanMessage(content=req.message))
-    
-    try:
-        response = model_with_tools.invoke(messages)
+        messages = [SystemMessage(content=system_prompt)]
+        for m in raw_history:
+            if m["role"] == "user":
+                messages.append(HumanMessage(content=m["content"]))
+            else:
+                messages.append(AIMessage(content=m["content"]))
+        messages.append(HumanMessage(content=req.message))
         
-        if response.tool_calls:
-            messages.append(response)
-            for tc in response.tool_calls:
-                tname = tc["name"]
-                targs = tc["args"]
-                target_tool = next((t for t in tools if t.name == tname), None)
-                
-                if target_tool:
-                    tool_res = target_tool.invoke(targs)
-                    messages.append(ToolMessage(content=str(tool_res), tool_call_id=tc["id"]))
-                else:
-                    messages.append(ToolMessage(content=f"Error: Tool {tname} not permitted.", tool_call_id=tc["id"]))
+        try:
+            yield f"data: {json.dumps({'status': 'Thinking...'})}\n\n"
+            response = await run_in_threadpool(model_with_tools.invoke, messages)
             
-            final_response = model.invoke(messages)
-            reply_content = str(final_response.content)
-        else:
-            reply_content = str(response.content)
-        
-        now = datetime.now(timezone.utc)
-        db.chat_history.insert_many([
-            {"username": current_user.username, "role": "user", "content": req.message, "timestamp": now},
-            {"username": current_user.username, "role": "assistant", "content": reply_content, "timestamp": now}
-        ])
-        
-        return ChatResponse(reply=reply_content)
-    except Exception as e:
-        logger.error(f"Chat error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get AI response")
+            if response.tool_calls:
+                yield f"data: {json.dumps({'status': 'Calling Tools...'})}\n\n"
+                messages.append(response)
+                for tc in response.tool_calls:
+                    tname = tc["name"]
+                    targs = tc["args"]
+                    target_tool = next((t for t in tools if t.name == tname), None)
+                    
+                    if target_tool:
+                        tool_res = await run_in_threadpool(target_tool.invoke, targs)
+                        messages.append(ToolMessage(content=str(tool_res), tool_call_id=tc["id"]))
+                    else:
+                        messages.append(ToolMessage(content=f"Error: Tool {tname} not permitted.", tool_call_id=tc["id"]))
+                
+                yield f"data: {json.dumps({'status': 'Thinking...'})}\n\n"
+                final_response = await run_in_threadpool(model.invoke, messages)
+                reply_content = str(final_response.content)
+            else:
+                reply_content = str(response.content)
+            
+            now = datetime.now(timezone.utc)
+            db.chat_history.insert_many([
+                {"username": current_user.username, "role": "user", "content": req.message, "timestamp": now},
+                {"username": current_user.username, "role": "assistant", "content": reply_content, "timestamp": now}
+            ])
+            
+            yield f"data: {json.dumps({'reply': reply_content})}\n\n"
+        except Exception as e:
+            logger.error(f"Chat error: {e}")
+            yield f"data: {json.dumps({'error': 'Failed to get AI response'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/clear")
 async def clear_chat(current_user: User = Depends(get_current_user)):

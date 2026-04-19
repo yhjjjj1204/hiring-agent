@@ -12,7 +12,8 @@ import {
   Users,
   Bot,
   Brain,
-  Edit3
+  Edit3,
+  Trash2
 } from 'lucide-vue-next'
 import JobManager from './JobManager.vue'
 import CandidateSnapshot from './CandidateSnapshot.vue'
@@ -145,6 +146,18 @@ async function saveJobUpdate() {
   } catch (e) { console.error(e) }
 }
 
+async function deleteJob() {
+  if (!confirm('Are you sure you want to delete this job? All associated candidate rankings will also be lost.')) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`/api/recruiter/jobs/${selectedJob.value.id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) router.push('/')
+  } catch (e) { console.error(e) }
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleString()
@@ -228,6 +241,7 @@ defineExpose({ reset, onSelectJob, selectCandidate })
       <div class="job-header-bar">
         <button class="mini secondary" @click="goBackToJobs"><ChevronLeft :size="14" /> Back</button>
         <h2 class="job-title">{{ selectedJob.title }}</h2>
+        <button class="mini secondary danger" @click="deleteJob"><Trash2 :size="14" /> Delete Job</button>
       </div>
 
       <div class="job-desc-readonly glass-card">
@@ -493,4 +507,6 @@ defineExpose({ reset, onSelectJob, selectCandidate })
 .spin { animation: spin 2s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .warn { color: #f59e0b !important; border-color: rgba(245, 158, 11, 0.3) !important; }
+.danger { color: #ef4444 !important; border-color: rgba(239, 68, 68, 0.3) !important; }
+.danger:hover { background: rgba(239, 68, 68, 0.1) !important; }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { MessageSquare, X, Send, Trash2, Bot, User, Minus, Maximize2, Minimize2, Brain } from 'lucide-vue-next'
 import { marked } from 'marked'
 import ChatCard from './ChatCard.vue'
@@ -23,6 +23,23 @@ const message = ref('')
 const history = ref([])
 const typingStatus = ref('')
 const scrollRef = ref(null)
+const chatInputRef = ref(null)
+const currentSelection = ref('')
+let isClickingInput = false
+
+// Selection tracking
+function handleSelectionChange() {
+  const selection = window.getSelection().toString().trim()
+  if (selection) {
+    currentSelection.value = selection
+  } else if (!isClickingInput) {
+    currentSelection.value = ''
+  }
+}
+
+function handleMouseDown(e) {
+  isClickingInput = chatInputRef.value && chatInputRef.value.contains(e.target)
+}
 
 // Resizable state
 const chatWidth = ref(380)
@@ -62,6 +79,9 @@ const apiBase = computed(() => `/api/${props.user.role}/chat`)
 // Refined context for backend
 const filteredContext = computed(() => {
   const ctx = { ...props.context }
+  if (currentSelection.value) {
+    ctx.selection = currentSelection.value
+  }
   return Object.fromEntries(
     Object.entries(ctx).filter(([_, v]) => v != null && v !== '')
   )
@@ -72,9 +92,19 @@ const displayContext = computed(() => {
   const ctx = { ...filteredContext.value }
   delete ctx.role
   if (ctx.status === 'ready') delete ctx.status
-  return Object.fromEntries(
+  
+  const result = Object.fromEntries(
     Object.entries(ctx).filter(([k, _]) => !k.endsWith('_id'))
   )
+
+  if (result.selection) {
+    const text = result.selection
+    if (text.length > 20) {
+      result.selection = `${text.substring(0, 10)}...${text.substring(text.length - 10)}`
+    }
+  }
+  
+  return result
 })
 
 /**
@@ -252,6 +282,13 @@ function onCardNavigate(payload) {
 
 onMounted(() => {
   loadHistory()
+  document.addEventListener('selectionchange', handleSelectionChange)
+  document.addEventListener('mousedown', handleMouseDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('selectionchange', handleSelectionChange)
+  document.removeEventListener('mousedown', handleMouseDown)
 })
 </script>
 
@@ -332,7 +369,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <form class="chat-input" @submit.prevent="sendMessage">
+      <form ref="chatInputRef" class="chat-input" @submit.prevent="sendMessage">
         <input v-model="message" placeholder="Ask me anything..." @keydown.enter.prevent="sendMessage" />
         <button type="submit" :disabled="!message.trim() || !!typingStatus">
           <Send :size="16" />

@@ -284,6 +284,7 @@ async function handleNavigateFromChat(payload) {
 
 <template>
   <div class="app-root">
+    <div v-if="route.path === '/'" class="star-background"></div>
     <header class="main-header">
       <div class="header-inner">
         <div class="header-left">

@@ -185,9 +185,15 @@ async function clearChat() {
 async function sendMessage() {
   if (!message.value.trim() || typingStatus.value) return
 
-  const userMsg = { role: 'user', content: message.value, timestamp: new Date().toISOString() }
+  const userMsg = { 
+    role: 'user', 
+    content: message.value, 
+    timestamp: new Date().toISOString(),
+    context_labels: { ...displayContext.value }
+  }
   history.value.push(userMsg)
   const currentMsg = message.value
+  const currentLabels = { ...displayContext.value }
   message.value = ''
   
   scrollToBottom()
@@ -203,7 +209,8 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         message: currentMsg,
-        context: filteredContext.value
+        context: filteredContext.value,
+        context_labels: currentLabels
       })
     })
     
@@ -331,7 +338,14 @@ onUnmounted(() => {
             <User v-if="msg.role === 'user'" :size="14" class="header-icon" />
           </div>
           <div :class="['message-bubble', msg.role]">
-            <div v-if="msg.role === 'user'" class="message-content user-msg">{{ msg.content }}</div>
+            <div v-if="msg.role === 'user'" class="message-content user-msg">
+              <div v-if="msg.context_labels && Object.keys(msg.context_labels).length" class="message-context-tags">
+                <span v-for="(val, key) in msg.context_labels" :key="key" class="context-tag">
+                  {{ key }}: {{ val }}
+                </span>
+              </div>
+              {{ msg.content }}
+            </div>
             <div v-else class="message-content multi-segment">
               <template v-for="(seg, sIdx) in parseSegments(msg.content)" :key="sIdx">
                 <div v-if="seg.type === 'text'" class="markdown-body chat-md" v-html="renderMarkdown(seg.content)"></div>
@@ -463,6 +477,23 @@ onUnmounted(() => {
 .message-bubble.assistant { background: var(--header-bg); border: 1px solid var(--border); border-radius: 0 8px 8px 8px; }
 
 .user-msg { white-space: pre-wrap; word-break: break-word; }
+.message-context-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+.context-tag {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
 .message-content { width: 100%; }
 
 /* Eliminate large markdown gaps */

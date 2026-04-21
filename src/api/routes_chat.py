@@ -25,10 +25,12 @@ class ChatMessage(BaseModel):
     role: str # 'user' or 'assistant'
     content: str
     timestamp: datetime
+    context_labels: Optional[dict[str, Any]] = None
 
 class ChatRequest(BaseModel):
     message: str
     context: Optional[dict[str, Any]] = None
+    context_labels: Optional[dict[str, Any]] = None
 
 class ChatResponse(BaseModel):
     reply: str
@@ -246,7 +248,13 @@ GUIDELINES:
             
             now = datetime.now(timezone.utc)
             db.chat_history.insert_many([
-                {"username": current_user.username, "role": "user", "content": req.message, "timestamp": now},
+                {
+                    "username": current_user.username, 
+                    "role": "user", 
+                    "content": req.message, 
+                    "timestamp": now,
+                    "context_labels": req.context_labels
+                },
                 {"username": current_user.username, "role": "assistant", "content": reply_content, "timestamp": now}
             ])
             

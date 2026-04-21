@@ -15,7 +15,6 @@ import {
   Moon,
   BarChart3
 } from 'lucide-vue-next'
-import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
 import AnalysisResult from './components/AnalysisResult.vue'
 import CandidateSnapshot from './components/CandidateSnapshot.vue'
@@ -23,16 +22,13 @@ import Auth from './components/Auth.vue'
 import RecruiterDashboard from './components/RecruiterDashboard.vue'
 import JobList from './components/JobList.vue'
 import ChatBot from './components/ChatBot.vue'
+import ResumeManager from './components/ResumeManager.vue'
 
 const user = ref(null)
 const selectedJob = ref(null)
 const recruiterDashboardRef = ref(null)
-const file = ref(null)
-const requirements = reactive({
-  github: '',
-  scholarUrl: '',
-  nameOverride: ''
-})
+const personalStatement = ref('')
+const candidateProfile = ref(null)
 
 const status = ref('')
 const statusClass = ref('')
@@ -59,12 +55,6 @@ const isJobExpanded = ref(false)
 let candidatePollInterval = null
 
 async function runAnalysis() {
-  if (!file.value) {
-    status.value = "Please choose or drop a resume file."
-    statusClass.value = "err"
-    return
-  }
-  
   if (!selectedJob.value?.id) {
     status.value = "No job selected. Please try again."
     statusClass.value = "err"
@@ -72,22 +62,20 @@ async function runAnalysis() {
   }
 
   const fd = new FormData()
-  fd.append("resume", file.value, file.value.name)
-  fd.append("job_id", selectedJob.value.id)
-  if (requirements.github.trim()) fd.append("candidate_github", requirements.github.trim())
-  if (requirements.scholarUrl.trim()) fd.append("google_scholar_url", requirements.scholarUrl.trim())
-  if (requirements.nameOverride.trim()) fd.append("candidate_name_override", requirements.nameOverride.trim())
+  if (personalStatement.value.trim()) {
+    fd.append("personal_statement", personalStatement.value.trim())
+  }
 
   isWorking.value = true
   statusClass.value = ""
-  status.value = "Uploading and starting evaluation…"
+  status.value = "Submitting application using your stored resume..."
   errorOutput.value = ""
   currentArrangedResume.value = null
 
   const token = localStorage.getItem('token')
 
   try {
-    const res = await fetch("/api/candidate/resume", {
+    const res = await fetch(`/api/candidate/apply/${selectedJob.value.id}`, {
       method: "POST",
       body: fd,
       headers: { 'Authorization': `Bearer ${token}` }
@@ -104,7 +92,7 @@ async function runAnalysis() {
     }
 
     currentRankingId.value = data.ranking_id
-    status.value = "Application submitted! AI agents are summarizing your data..."
+    status.value = "Application submitted! AI agents are evaluating your match..."
     statusClass.value = "ok"
 
     await fetchMySubmission()
@@ -130,12 +118,6 @@ async function fetchMySubmission() {
       currentRankingId.value = data.ranking_id
       currentArrangedResume.value = data.arranged_resume
       
-      if (data.candidate_info) {
-        requirements.github = data.candidate_info.github || ''
-        requirements.scholarUrl = data.candidate_info.scholar_url || ''
-        requirements.nameOverride = data.candidate_info.name_override || ''
-      }
-
       if (data.status === 'evaluating') {
         isWorking.value = true
         startPollingCandidateStatus()
@@ -200,6 +182,7 @@ function logout() {
 
 function selectJob(job) {
   if (selectedJob.value?.id === job.id) return
+  personalStatement.value = ''
   router.push(`/jobs/${job.id}`)
 }
 
@@ -207,11 +190,29 @@ function goHome() {
   router.push('/')
 }
 
+async function fetchCandidateProfile() {
+  if (!user.value || user.value.role !== 'candidate') return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch('/api/candidate/profile', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      candidateProfile.value = await res.json()
+    }
+  } catch (e) {
+    console.error("Failed to fetch candidate profile", e)
+  }
+}
+
 onMounted(() => {
   document.documentElement.setAttribute('data-theme', theme.value)
   const savedUser = localStorage.getItem('user')
   if (savedUser) {
     user.value = JSON.parse(savedUser)
+    if (user.value.role === 'candidate') {
+      fetchCandidateProfile()
+    }
   }
 })
 
@@ -257,7 +258,10 @@ async function syncStateWithRoute() {
         if (res.ok) {
           const jobData = await res.json()
           selectedJob.value = jobData
-          if (role === 'candidate') fetchMySubmission()
+          if (role === 'candidate') {
+            fetchMySubmission()
+            fetchCandidateProfile()
+          }
         } else if (res.status === 404) {
           router.push({ name: 'NotFound', params: { pathMatch: route.path.split('/').slice(1) } })
         }
@@ -265,6 +269,7 @@ async function syncStateWithRoute() {
     }
   } else {
     selectedJob.value = null
+    personalStatement.value = ''
   }
 }
 
@@ -301,6 +306,11 @@ async function handleNavigateFromChat(payload) {
             <router-link v-if="user?.role === 'recruiter'" to="/usage" class="header-btn" title="Usage Statistics">
               <BarChart3 :size="16" />
             </router-link>
+            
+            <router-link v-if="user?.role === 'candidate'" to="/resume" class="resume-nav-btn" title="Manage Resume">
+              <FileText :size="14" /> Resume
+            </router-link>
+
             <div v-if="user" class="user-profile">
               <div class="profile-details">
                 <span class="user-name">{{ user.username }}</span>
@@ -321,6 +331,10 @@ async function handleNavigateFromChat(payload) {
       </div>
 
       <router-view v-else-if="route.name === 'NotFound' || route.name === 'UsageStats'" />
+
+      <div v-else-if="route.name === 'ResumeManager'" class="resume-manager-view">
+        <ResumeManager :user="user" />
+      </div>
 
       <div v-else-if="user.role === 'candidate'" class="candidate-view">
         <div v-if="!selectedJob">
@@ -350,26 +364,38 @@ async function handleNavigateFromChat(payload) {
               <h3>{{ existingSubmission ? 'Update Application' : 'Apply for this position' }}</h3>
               <button v-if="existingSubmission" class="text-btn err" @click="showReSubmitForm = false">Cancel</button>
             </div>
-            <ResumeUpload v-model="file" />
-            <div class="background-inputs">
-              <h3>External Profiles <small>(Optional)</small></h3>
-              <div class="inputs-grid">
-                <div class="form-group">
-                  <label>GitHub</label>
-                  <input v-model="requirements.github" type="text" placeholder="username" />
-                </div>
-                <div class="form-group">
-                  <label>Google Scholar</label>
-                  <input v-model="requirements.scholarUrl" type="text" placeholder="https://scholar.google.com/..." />
-                </div>
-                <div class="form-group full-width">
-                  <label>Full Name Override</label>
-                  <input v-model="requirements.nameOverride" type="text" placeholder="Only if OCR fails to detect your name" />
+            
+            <div class="stored-resume-notice" :class="{ 'missing-resume': !candidateProfile?.resume_filename }">
+              <div class="notice-info">
+                <FileText :size="18" :class="candidateProfile?.resume_filename ? 'text-accent' : 'text-err'" />
+                <div>
+                  <p class="notice-main">
+                    {{ candidateProfile?.resume_filename ? 'Using the resume you uploaded' : 'Please upload your resume first' }}
+                  </p>
+                  <router-link to="/resume" class="notice-link">
+                    {{ candidateProfile?.resume_filename ? 'View or Change Resume' : 'Go to Resume Manager' }}
+                  </router-link>
                 </div>
               </div>
             </div>
+
+            <div class="personal-statement-section">
+              <div class="field-header">
+                <label>Personal Statement (Optional)</label>
+                <span :class="['char-count', { 'limit-near': personalStatement.split(/\s+/).filter(w => w.length > 0).length > 160, 'limit-reached': personalStatement.split(/\s+/).filter(w => w.length > 0).length > 200 }]">
+                  {{ personalStatement.split(/\s+/).filter(w => w.length > 0).length }} / 200 words
+                </span>
+              </div>
+              <textarea 
+                v-model="personalStatement" 
+                placeholder="Why are you a good fit for this specific role? (Max 200 words)"
+                rows="5"
+                :disabled="!candidateProfile?.resume_filename"
+              ></textarea>
+            </div>
+
             <div class="actions">
-              <button type="button" @click="runAnalysis" :disabled="isWorking">
+              <button type="button" @click="runAnalysis" :disabled="isWorking || !candidateProfile?.resume_filename || personalStatement.split(/\s+/).filter(w => w.length > 0).length > 200">
                 {{ existingSubmission ? 'Update Submission' : 'Submit Application' }}
               </button>
               <Loader2 v-if="isWorking" class="loader mini-loader spin" :size="16" />
@@ -380,25 +406,28 @@ async function handleNavigateFromChat(payload) {
           <div v-else class="submission-view">
             <div class="submission-status-bar glass-card">
               <div class="status-info">
-                <span class="submitted-label">Status</span>
-                <span :class="['status-badge', existingSubmission.status]">
-                  <RefreshCw v-if="existingSubmission.status === 'evaluating'" :size="12" class="spin" />
-                  <CheckCircle v-else :size="12" />
-                  {{ existingSubmission.status === 'evaluating' ? 'Evaluating' : 'Submitted' }}
+                <span class="submitted-label">Current Status</span>
+                <span class="status-badge ready">
+                  <CheckCircle :size="12" />
+                  Application Received
                 </span>
               </div>
               <button class="secondary" @click="showReSubmitForm = true" :disabled="isWorking">Update Application</button>
             </div>
-            <div v-if="currentArrangedResume" class="arranged-data-card glass-card">
-              <div class="card-header-with-hint">
-                <h3>Structured Profile</h3>
-                <p class="hint">Objective summary as seen by our agents</p>
+
+            <div class="received-feedback glass-card">
+              <div class="feedback-content">
+                <CheckCircle :size="32" class="text-ok" />
+                <div class="feedback-text">
+                  <h3>Application Successfully Received</h3>
+                  <p>Thank you for applying! Your profile and personal statement have been securely submitted. Our team will review your application soon.</p>
+                </div>
               </div>
-              <CandidateSnapshot :arranged-resume="currentArrangedResume" />
             </div>
-            <div v-else-if="isWorking" class="evaluating-card glass-card">
-              <Loader2 class="loader spin" :size="32" />
-              <p>Evaluating submission...</p>
+
+            <div v-if="existingSubmission.personal_statement" class="personal-statement-display glass-card">
+              <label>Your Personal Statement</label>
+              <p class="statement-text">{{ existingSubmission.personal_statement }}</p>
             </div>
           </div>
           <pre v-if="errorOutput" id="errorOut">{{ errorOutput }}</pre>
@@ -490,6 +519,96 @@ async function handleNavigateFromChat(payload) {
   color: var(--accent);
   background: var(--accent-glow);
   border-color: var(--accent);
+}
+
+.header-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 0.5rem;
+}
+
+.resume-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.resume-nav-btn:hover {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.stored-resume-notice {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stored-resume-notice.missing-resume {
+  border-color: var(--err-glow);
+  background: var(--err-glow);
+}
+
+.text-err { color: var(--err); }
+.text-accent { color: var(--accent); }
+
+.notice-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.notice-main {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.notice-link {
+  font-size: 0.75rem;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.personal-statement-section {
+  margin-bottom: 1.5rem;
+}
+
+.field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.char-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.char-count.limit-reached {
+  color: var(--err);
+}
+
+.personal-statement-section textarea {
+  width: 100%;
+  resize: vertical;
 }
 
 .user-profile {
@@ -604,6 +723,48 @@ async function handleNavigateFromChat(payload) {
 .status-badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; border: 1px solid var(--border); text-transform: uppercase; }
 .status-badge.evaluating { color: var(--accent); border-color: var(--accent); }
 .status-badge.ready { color: var(--ok); border-color: var(--ok); }
+
+.personal-statement-display {
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.personal-statement-display label {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.statement-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin: 0;
+  color: var(--text);
+}
+
+.received-feedback {
+  padding: 2.5rem 2rem;
+  margin-bottom: 1.5rem;
+  border-left: 4px solid var(--ok);
+}
+
+.feedback-content {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.feedback-text h3 {
+  margin: 0 0 0.25rem 0;
+  color: var(--ok);
+}
+
+.feedback-text p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
 
 .arranged-data-card { padding: 1.5rem; }
 .card-header-with-hint { margin-bottom: 1.5rem; }

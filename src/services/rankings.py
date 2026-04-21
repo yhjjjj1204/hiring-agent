@@ -70,6 +70,7 @@ async def trigger_re_evaluation(
     )
 
     cinfo = ranking.get("candidate_info") or {}
+    personal_statement = ranking.get("personal_statement")
     background_tasks.add_task(
         _background_evaluate_resume,
         ranking_id=ranking_id,
@@ -80,6 +81,7 @@ async def trigger_re_evaluation(
         google_scholar_url=cinfo.get("scholar_url"),
         candidate_name_override=cinfo.get("name_override"),
         username=current_user.username,
+        personal_statement=personal_statement,
     )
 
     return {"status": "evaluating"}
@@ -110,6 +112,7 @@ async def trigger_re_evaluation_all(
         db.candidate_rankings.update_one({"ranking_id": ranking_id}, {"$set": {"status": "evaluating"}})
         
         cinfo = r.get("candidate_info") or {}
+        pstat = r.get("personal_statement")
         background_tasks.add_task(
             _background_evaluate_resume,
             ranking_id=ranking_id,
@@ -117,9 +120,10 @@ async def trigger_re_evaluation_all(
             hr_requirement_text=hr_requirement_text,
             job_spec_json=None,
             candidate_github=cinfo.get("github"),
-            google_scholar_url=google_scholar_url,
+            google_scholar_url=cinfo.get("scholar_url"),
             candidate_name_override=cinfo.get("name_override"),
             username=current_user.username,
+            personal_statement=pstat,
         )
         count += 1
         

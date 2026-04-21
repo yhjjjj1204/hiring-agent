@@ -22,6 +22,11 @@ const routes = [
     component: () => import('./App.vue'),
   },
   {
+    path: '/resume',
+    name: 'ResumeManager',
+    component: () => import('./App.vue'),
+  },
+  {
     path: '/usage',
     name: 'UsageStats',
     component: () => import('./components/UsageStats.vue'),

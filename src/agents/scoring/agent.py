@@ -21,6 +21,7 @@ def score_match(
     job_spec: dict,
     arranged_resume: dict,
     background_result: dict,
+    personal_statement: str | None = None,
 ) -> Scorecard:
     if not config.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not set; scoring cannot run")
@@ -32,6 +33,7 @@ def score_match(
         "job_spec": job_spec,
         "arranged_resume": blind_resume,
         "background_result": blind_bg,
+        "personal_statement": personal_statement,
     }
     body = json.dumps(payload, ensure_ascii=False, indent=2)
     from monitoring.context import current_username, current_function_id

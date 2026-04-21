@@ -70,6 +70,7 @@ async def _background_evaluate_resume(
     google_scholar_url: str | None,
     candidate_name_override: str | None,
     username: str,
+    personal_statement: str | None = None,
 ):
     """Background task to perform the full LLM evaluation."""
     try:
@@ -95,7 +96,7 @@ async def _background_evaluate_resume(
         bg = run_background_analysis(name, candidate_github, google_scholar_url)
         bg_dict = bg.model_dump(mode="json")
 
-        sc = score_match(job_spec, arranged, bg_dict)
+        sc = score_match(job_spec, arranged, bg_dict, personal_statement)
         sc_dict = sc.model_dump(mode="json")
 
         # Prepare dimensions
@@ -137,6 +138,7 @@ async def analyze_resume(
     candidate_github: str | None = Form(default=None),
     google_scholar_url: str | None = Form(default=None),
     candidate_name_override: str | None = Form(default=None),
+    personal_statement: str | None = Form(default=None),
     current_user: User = Depends(require_role("candidate")),
 ):
     from datetime import datetime, timezone
@@ -176,6 +178,7 @@ async def analyze_resume(
                 "summary": "",
                 "scorecard_snapshot": None,
                 "arranged_resume": None,
+                "personal_statement": personal_statement,
                 "candidate_info": {
                     "github": candidate_github,
                     "scholar_url": google_scholar_url,
@@ -201,6 +204,8 @@ async def analyze_resume(
             },
             status="evaluating"
         )
+        if personal_statement:
+            db.candidate_rankings.update_one({"ranking_id": ranking_id}, {"$set": {"personal_statement": personal_statement}})
 
     # Save resume file
     dest_path = _UPLOAD_DIR / f"{ranking_id}{suffix}"
@@ -218,6 +223,7 @@ async def analyze_resume(
         google_scholar_url=google_scholar_url,
         candidate_name_override=candidate_name_override,
         username=current_user.username,
+        personal_statement=personal_statement,
     )
 
     return AnalyzeResumeResponse(ranking_id=ranking_id, status="evaluating")
@@ -257,12 +263,24 @@ async def get_resume_file(
     import re
     from datetime import datetime
     
-    files = list(_UPLOAD_DIR.glob(f"{ranking_id}.*"))
-    if not files:
-        raise HTTPException(status_code=404, detail="Resume not found")
-    
     db = get_database()
     ranking = db.candidate_rankings.find_one({"ranking_id": ranking_id})
+    
+    # 1. Try to use resume_path from DB
+    resume_path = None
+    if ranking and ranking.get("resume_path"):
+        p = Path(ranking["resume_path"])
+        if p.exists():
+            resume_path = p
+    
+    # 2. Fallback to ranking_id glob (old logic)
+    if not resume_path:
+        files = list(_UPLOAD_DIR.glob(f"{ranking_id}.*"))
+        if files:
+            resume_path = files[0]
+            
+    if not resume_path:
+        raise HTTPException(status_code=404, detail="Resume not found")
     
     # Determine candidate name for filename
     candidate_name = "unknown"
@@ -277,12 +295,12 @@ async def get_resume_file(
     ts = datetime.now().strftime("%Y%m%d.%H%M")
     
     # Preserve original extension
-    suffix = Path(files[0]).suffix
+    suffix = resume_path.suffix
     
     new_filename = f"HiringAgent-{candidate_name}-{ts}{suffix}"
 
     return FileResponse(
-        path=files[0],
+        path=resume_path,
         filename=new_filename,
         media_type="application/octet-stream"
     )

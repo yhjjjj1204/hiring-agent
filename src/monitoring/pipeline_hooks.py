@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from monitoring.context import current_username, current_function_id
 from monitoring.registry import get_monitor
 
 try:
@@ -12,7 +13,7 @@ try:
 except ImportError:
     get_config = None  # type: ignore[misc, assignment]
 
-S = TypeVar("S")
+S = TypeVar("S", bound=dict[str, Any])
 
 
 def _thread_id() -> str:
@@ -22,8 +23,8 @@ def _thread_id() -> str:
         cfg = get_config()
         tid = (cfg.get("configurable") or {}).get("thread_id")
         return str(tid) if tid else "unknown-thread"
-    except RuntimeError:
-        return "no-graph-context"
+    except Exception:
+        return "unknown-thread"
 
 
 def monitored_node(agent_id: str, fn: Callable[[S], dict[str, Any]]) -> Callable[[S], dict[str, Any]]:
@@ -33,6 +34,14 @@ def monitored_node(agent_id: str, fn: Callable[[S], dict[str, Any]]) -> Callable
         mon = get_monitor()
         tid = _thread_id()
         mon.begin_step(tid, agent_id, "pipeline")
+
+        # SET CONTEXT FOR LLM CALLBACKS
+        run = mon.get_run_record(tid)
+        username = run.meta.get("username") if run else None
+
+        token_u = current_username.set(username)
+        token_f = current_function_id.set(agent_id)
+
         ok = True
         err: str | None = None
         intr = False
@@ -44,7 +53,15 @@ def monitored_node(agent_id: str, fn: Callable[[S], dict[str, Any]]) -> Callable
             intr = "Interrupt" in err
             raise
         finally:
-            mon.end_step(tid, agent_id, ok=ok, error=err, interrupted=intr)
+            current_username.reset(token_u)
+            current_function_id.reset(token_f)
+            mon.end_step(
+                tid,
+                agent_id,
+                ok=ok,
+                error=err,
+                interrupted=intr,
+            )
 
     return wrapped
 

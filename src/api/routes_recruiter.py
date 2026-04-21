@@ -9,6 +9,7 @@ from services.jobs import list_jobs, get_job, create_job, update_job, delete_job
 from services.rankings import list_candidate_rankings, trigger_re_evaluation, trigger_re_evaluation_all
 from api.routes_chat import chat_message, get_chat_history, ChatRequest, ChatResponse, ChatMessage
 from api.routes_dashboard import get_ranking
+from monitoring.usage_service import get_user_usage_summary
 
 from pydantic import BaseModel
 
@@ -89,6 +90,10 @@ async def recruiter_re_evaluate_all(
 async def recruiter_get_resume(ranking_id: str, current_user: User = Depends(require_role("recruiter"))):
     from api.routes_analyze import get_resume_file
     return await get_resume_file(ranking_id, current_user)
+
+@router.get("/usage")
+async def recruiter_get_usage(current_user: User = Depends(require_role("recruiter"))):
+    return get_user_usage_summary(current_user.username)
 
 # Chat
 @router.post("/chat/message")

@@ -14,6 +14,7 @@ from fairness.blind_screening import (
     blind_screen_background_for_scoring,
     blind_screen_resume_profile,
 )
+from monitoring.token_callback import get_token_callback
 
 
 def score_match(
@@ -33,10 +34,12 @@ def score_match(
         "background_result": blind_bg,
     }
     body = json.dumps(payload, ensure_ascii=False, indent=2)
+    from monitoring.context import current_username, current_function_id
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,
         api_key=config.OPENAI_API_KEY,
+        callbacks=get_token_callback(username=current_username.get(), function_id=current_function_id.get() or "auto_score"),
     ).with_structured_output(Scorecard)
     out = llm.invoke(
         [

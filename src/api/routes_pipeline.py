@@ -5,10 +5,12 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
+from api.auth_models import User
+from api.deps import get_current_user
 from dashboard.ranking_service import record_pipeline_ranking
 from graph.pipeline import (
     build_hiring_pipeline_graph,
@@ -52,7 +54,7 @@ class PipelineInvokeRequest(BaseModel):
 
 
 @router.post("/invoke")
-def pipeline_invoke(req: PipelineInvokeRequest):
+def pipeline_invoke(req: PipelineInvokeRequest, current_user: User = Depends(get_current_user)):
     if req.resume is not None and not req.thread_id:
         raise HTTPException(status_code=400, detail="thread_id is required when using resume for HITL")
 
@@ -60,7 +62,9 @@ def pipeline_invoke(req: PipelineInvokeRequest):
     cfg = pipeline_config(tid)
     g = build_hiring_pipeline_graph()
     mon = get_monitor()
+    
     meta = {k: v for k, v in req.input.model_dump().items() if v is not None and k in ("candidate_ref",)}
+    meta["username"] = current_user.username
     mon.start_run(tid, "pipeline", meta=meta)
 
     if req.resume is not None:

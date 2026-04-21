@@ -26,6 +26,7 @@ from db.mongo import get_database
 from fairness.injection_sanitize import sanitize_resume_text
 from graph.pipeline import extract_hr_job_spec_from_text
 from services.rankings import trigger_re_evaluation, trigger_re_evaluation_all, get_my_submission as get_my_submission_svc
+from monitoring.context import set_execution_context
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
@@ -68,11 +69,15 @@ async def _background_evaluate_resume(
     candidate_github: str | None,
     google_scholar_url: str | None,
     candidate_name_override: str | None,
+    username: str,
 ):
     """Background task to perform the full LLM evaluation."""
     try:
         if not config.OPENAI_API_KEY:
             return
+
+        # SET CONTEXT FOR AUTOMATIC TOKEN TRACKING
+        set_execution_context(username=username, function_id="background_eval")
 
         job_spec = _resolve_job_spec(hr_requirement_text, job_spec_json)
 
@@ -212,6 +217,7 @@ async def analyze_resume(
         candidate_github=candidate_github,
         google_scholar_url=google_scholar_url,
         candidate_name_override=candidate_name_override,
+        username=current_user.username,
     )
 
     return AnalyzeResumeResponse(ranking_id=ranking_id, status="evaluating")

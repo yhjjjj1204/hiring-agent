@@ -9,6 +9,7 @@ import config
 from agents.data_arrangement.models import ResumeStructuredProfile
 from agents.data_arrangement.prompts import DATA_ARRANGEMENT_SYSTEM
 from fairness.injection_sanitize import sanitize_resume_text
+from monitoring.token_callback import get_token_callback
 
 _MAX_OCR_CHARS = 100_000
 
@@ -36,10 +37,12 @@ def arrange_resume_from_ocr_text(
     if not body:
         return ResumeStructuredProfile(), truncated, inj_meta
 
+    from monitoring.context import current_username, current_function_id
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,
         api_key=config.OPENAI_API_KEY,
+        callbacks=get_token_callback(username=current_username.get(), function_id=current_function_id.get() or "resume_arrange"),
     ).with_structured_output(ResumeStructuredProfile)
 
     msg = HumanMessage(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,9 @@ from agents.hr_strategy.graph import build_hr_strategy_graph
 from agents.hr_strategy.messages_io import messages_to_records, records_to_messages
 from agents.hr_strategy.models import HRJobSpec, HR_STRATEGY_JSON_SCHEMA, SPEC_SCHEMA_VERSION
 from monitoring.registry import get_monitor
+from monitoring.context import set_execution_context
+from api.deps import require_role
+from api.auth_models import User
 from agents.hr_strategy.repository import (
     create_session,
     get_latest_job_spec,
@@ -56,21 +59,28 @@ class SchemaResponse(BaseModel):
 
 
 @router.post("/sessions", response_model=CreateSessionResponse)
-def open_session():
+def open_session(current_user: User = Depends(require_role("recruiter"))):
     if not config.OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not set")
     sid = str(uuid.uuid4())
-    create_session(sid)
+    create_session(sid, username=current_user.username)
     return CreateSessionResponse(session_id=sid, status="collecting")
 
 
 @router.post("/sessions/{session_id}/messages", response_model=ChatResponse)
-def post_message(session_id: str, body: ChatBody):
+def post_message(
+    session_id: str, 
+    body: ChatBody,
+    current_user: User = Depends(require_role("recruiter"))
+):
     if not config.OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not set")
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # SET CONTEXT FOR AUTOMATIC TOKEN TRACKING
+    set_execution_context(username=current_user.username, function_id="hr_strategy_chat")
 
     mon = get_monitor()
     mon.http_activity("hr_strategy_chat", correlation_id=session_id, phase="start")
@@ -107,7 +117,10 @@ def post_message(session_id: str, body: ChatBody):
 
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
-def read_session(session_id: str):
+def read_session(
+    session_id: str,
+    current_user: User = Depends(require_role("recruiter"))
+):
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -119,7 +132,10 @@ def read_session(session_id: str):
 
 
 @router.get("/sessions/{session_id}/spec", response_model=dict[str, Any])
-def read_latest_spec(session_id: str):
+def read_latest_spec(
+    session_id: str,
+    current_user: User = Depends(require_role("recruiter"))
+):
     doc = get_latest_job_spec(session_id)
     if not doc:
         raise HTTPException(status_code=404, detail="No structured spec generated yet")

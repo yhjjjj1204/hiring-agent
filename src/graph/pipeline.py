@@ -26,12 +26,13 @@ from fairness.blind_screening import (
 from fairness.injection_sanitize import sanitize_resume_text
 from monitoring.pipeline_hooks import monitored_node
 from agents.ocr_agent import extract_and_arrange_resume_from_path
+from monitoring.token_callback import get_token_callback
 
 logger = logging.getLogger(__name__)
 
 _CONFIDENCE_HITL_THRESHOLD = 0.55
 _MIN_HR_CHARS = 15
-_PIPELINE_BUILD_ID = 4  # Increment when graph structure changes to invalidate old compilation cache
+_PIPELINE_BUILD_ID = 5  # Increment when graph structure changes to invalidate old compilation cache
 
 
 class HiringPipelineState(TypedDict, total=False):
@@ -74,10 +75,13 @@ def extract_hr_job_spec_from_text(hr_requirement_text: str) -> dict[str, Any]:
 def _llm_extract_hr_job_spec(text: str) -> HRJobSpec:
     if not config.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not set")
+    
+    from monitoring.context import current_username, current_function_id
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0,
         api_key=config.OPENAI_API_KEY,
+        callbacks=get_token_callback(username=current_username.get(), function_id=current_function_id.get() or "hr_ingest"),
     ).with_structured_output(HRJobSpec)
     msg = HumanMessage(
         content=(

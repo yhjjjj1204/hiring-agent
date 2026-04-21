@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
 
+from monitoring.usage_service import record_usage
+
 StepStatus = Literal["running", "completed", "failed", "interrupted"]
 
 
@@ -24,6 +26,8 @@ class StepRecord:
     ended_at: str | None = None
     error: str | None = None
     context: str = "pipeline"  # pipeline | http
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 @dataclass
@@ -96,6 +100,8 @@ class AgentMonitorRegistry:
         ok: bool,
         error: str | None = None,
         interrupted: bool = False,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
     ) -> None:
         with self._lock:
             run = self._runs.get(thread_id)
@@ -106,12 +112,19 @@ class AgentMonitorRegistry:
                 return
             last.ended_at = _utcnow()
             last.error = error
+            last.input_tokens = input_tokens
+            last.output_tokens = output_tokens
             if interrupted:
                 last.status = "interrupted"
             else:
                 last.status = "completed" if ok else "failed"
             run.updated_at = last.ended_at
             run.current_agent_id = None
+
+            # PERSIST TO DATABASE
+            username = run.meta.get("username")
+            if username and (input_tokens > 0 or output_tokens > 0):
+                record_usage(username, agent_id, input_tokens, output_tokens)
 
     def finish_run(
         self,
@@ -184,6 +197,10 @@ class AgentMonitorRegistry:
                 return None
             return self._serialize_run(r)
 
+    def get_run_record(self, thread_id: str) -> RunRecord | None:
+        with self._lock:
+            return self._runs.get(thread_id)
+
     def _serialize_run(self, r: RunRecord) -> dict[str, Any]:
         return {
             "thread_id": r.thread_id,
@@ -201,6 +218,8 @@ class AgentMonitorRegistry:
                     "ended_at": s.ended_at,
                     "error": s.error,
                     "context": s.context,
+                    "input_tokens": s.input_tokens,
+                    "output_tokens": s.output_tokens,
                 }
                 for s in r.path
             ],

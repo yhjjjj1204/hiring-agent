@@ -42,7 +42,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 import config
 
-def _generate_job_summary(title: str, description: str) -> str:
+from monitoring.token_callback import get_token_callback
+from monitoring.context import set_execution_context
+
+def _generate_job_summary(title: str, description: str, username: Optional[str] = None) -> str:
     """Generate a 2-3 sentence AI summary of the job description."""
     if not config.OPENAI_API_KEY:
         return ""
@@ -51,8 +54,16 @@ def _generate_job_summary(title: str, description: str) -> str:
     if len(description) < 300:
         return ""
 
+    if username:
+        set_execution_context(username=username, function_id="job_summary")
+
     try:
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=config.OPENAI_API_KEY)
+        llm = ChatOpenAI(
+            model="gpt-4o-mini", 
+            temperature=0, 
+            api_key=config.OPENAI_API_KEY,
+            callbacks=get_token_callback(username=username, function_id="job_summary"),
+        )
         msg = HumanMessage(
             content=f"Title: {title}\nDescription: {description}\n\nProvide a concise 2-sentence summary of this job role and its key requirements."
         )
@@ -65,8 +76,8 @@ def _generate_job_summary(title: str, description: str) -> str:
         print(f"Failed to generate job summary: {e}")
         return ""
 
-def _background_generate_summary(job_id: str, title: str, description: str):
-    summary = _generate_job_summary(title, description)
+def _background_generate_summary(job_id: str, title: str, description: str, username: str):
+    summary = _generate_job_summary(title, description, username)
     if summary:
         db = get_database()
         db.jobs.update_one({"id": job_id}, {"$set": {"summary": summary}})
@@ -82,10 +93,10 @@ def create_job(title: str, description: str, current_user: User, background_task
     if len(description) >= 300:
         summary = "generating"
         if background_tasks:
-            background_tasks.add_task(_background_generate_summary, job_id, title, description)
+            background_tasks.add_task(_background_generate_summary, job_id, title, description, current_user.username)
         else:
             # Fallback for when background_tasks is not provided (e.g. some internal calls)
-            summary = _generate_job_summary(title, description)
+            summary = _generate_job_summary(title, description, current_user.username)
     
     job_doc = {
         "id": job_id,
@@ -119,9 +130,9 @@ def update_job(job_id: str, title: Optional[str], description: Optional[str], cu
             if len(new_desc) >= 300:
                 update_data["summary"] = "generating"
                 if background_tasks:
-                    background_tasks.add_task(_background_generate_summary, job_id, new_title, new_desc)
+                    background_tasks.add_task(_background_generate_summary, job_id, new_title, new_desc, current_user.username)
                 else:
-                    update_data["summary"] = _generate_job_summary(new_title, new_desc)
+                    update_data["summary"] = _generate_job_summary(new_title, new_desc, current_user.username)
             else:
                 update_data["summary"] = ""
 

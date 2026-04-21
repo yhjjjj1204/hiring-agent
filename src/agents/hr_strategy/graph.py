@@ -51,10 +51,13 @@ def _route_after_agent(state: HRStrategyState):
 def _build_model() -> ChatOpenAI:
     if not config.OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not set; HR Strategy model cannot run")
+    
+    from monitoring.token_callback import get_token_callback
     return ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0.2,
         api_key=config.OPENAI_API_KEY,
+        callbacks=get_token_callback(),
     )
 
 

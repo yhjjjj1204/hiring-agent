@@ -134,10 +134,13 @@ def get_re_evaluate_all_tool(user: User):
 def _get_chat_model() -> ChatOpenAI:
     if not config.OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
+    
+    from monitoring.token_callback import get_token_callback
     return ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0, 
-        api_key=config.OPENAI_API_KEY
+        api_key=config.OPENAI_API_KEY,
+        callbacks=get_token_callback(),
     )
 
 @router.get("/history", response_model=List[ChatMessage])
@@ -212,9 +215,14 @@ GUIDELINES:
                 messages.append(AIMessage(content=m["content"]))
         messages.append(HumanMessage(content=req.message))
         
+        from monitoring.context import set_execution_context
+        from monitoring.token_callback import get_token_callback
+        set_execution_context(username=current_user.username, function_id="chatbot")
+        cb = get_token_callback(username=current_user.username, function_id="chatbot")
+
         try:
             yield f"data: {json.dumps({'status': 'Thinking...'})}\n\n"
-            response = await run_in_threadpool(model_with_tools.invoke, messages)
+            response = await run_in_threadpool(model_with_tools.invoke, messages, {"callbacks": cb})
             
             if response.tool_calls:
                 yield f"data: {json.dumps({'status': 'Calling Tools...'})}\n\n"
@@ -231,7 +239,7 @@ GUIDELINES:
                         messages.append(ToolMessage(content=f"Error: Tool {tname} not permitted.", tool_call_id=tc["id"]))
                 
                 yield f"data: {json.dumps({'status': 'Thinking...'})}\n\n"
-                final_response = await run_in_threadpool(model.invoke, messages)
+                final_response = await run_in_threadpool(model.invoke, messages, {"callbacks": cb})
                 reply_content = str(final_response.content)
             else:
                 reply_content = str(response.content)

@@ -79,6 +79,7 @@ async def trigger_re_evaluation(
         candidate_github=cinfo.get("github"),
         google_scholar_url=cinfo.get("scholar_url"),
         candidate_name_override=cinfo.get("name_override"),
+        username=current_user.username,
     )
 
     return {"status": "evaluating"}
@@ -116,8 +117,9 @@ async def trigger_re_evaluation_all(
             hr_requirement_text=hr_requirement_text,
             job_spec_json=None,
             candidate_github=cinfo.get("github"),
-            google_scholar_url=cinfo.get("scholar_url"),
+            google_scholar_url=google_scholar_url,
             candidate_name_override=cinfo.get("name_override"),
+            username=current_user.username,
         )
         count += 1
         

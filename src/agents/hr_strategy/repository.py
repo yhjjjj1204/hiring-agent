@@ -34,11 +34,12 @@ def ensure_hr_strategy_indexes(db: Database[Any] | None = None) -> None:
     specs.create_index([("session_id", ASCENDING)], name="spec_by_session")
 
 
-def create_session(session_id: str, db: Database[Any] | None = None) -> dict[str, Any]:
+def create_session(session_id: str, username: str | None = None, db: Database[Any] | None = None) -> dict[str, Any]:
     d = db or get_database()
     now = _utcnow()
     doc = {
         "session_id": session_id,
+        "username": username,
         "status": "collecting",
         "messages": [],
         "created_at": now,

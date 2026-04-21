@@ -12,7 +12,8 @@ import {
   Loader2,
   Briefcase,
   Sun,
-  Moon
+  Moon,
+  BarChart3
 } from 'lucide-vue-next'
 import ResumeUpload from './components/ResumeUpload.vue'
 import JobRequirementInput from './components/JobRequirementInput.vue'
@@ -296,6 +297,9 @@ async function handleNavigateFromChat(payload) {
               <Moon v-if="theme === 'dark'" :size="14" />
               <Sun v-else :size="14" />
             </button>
+            <router-link v-if="user?.role === 'recruiter'" to="/usage" class="header-btn" title="Usage Statistics">
+              <BarChart3 :size="16" />
+            </router-link>
             <div v-if="user" class="user-profile">
               <div class="profile-details">
                 <span class="user-name">{{ user.username }}</span>
@@ -315,7 +319,7 @@ async function handleNavigateFromChat(payload) {
         <Auth @authenticated="onAuthenticated" />
       </div>
 
-      <router-view v-else-if="route.name === 'NotFound'" />
+      <router-view v-else-if="route.name === 'NotFound' || route.name === 'UsageStats'" />
 
       <div v-else-if="user.role === 'candidate'" class="candidate-view">
         <div v-if="!selectedJob">
@@ -466,6 +470,25 @@ async function handleNavigateFromChat(payload) {
 }
 .theme-toggle:hover {
   color: var(--accent);
+}
+
+.header-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--muted);
+  transition: all 0.2s ease;
+  background: var(--glass);
+  border: 1px solid var(--border);
+}
+
+.header-btn:hover {
+  color: var(--accent);
+  background: var(--accent-glow);
+  border-color: var(--accent);
 }
 
 .user-profile {

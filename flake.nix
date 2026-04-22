@@ -44,7 +44,7 @@
             pkgs.mkShell {
               packages = [
                 pythonEnv
-                pkgs.mongodb
+                pkgs.podman-compose
                 pkgs.nodejs
               ];
               shellHook = ''

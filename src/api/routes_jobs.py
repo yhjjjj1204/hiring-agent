@@ -13,7 +13,8 @@ from services.jobs import (
     get_job as get_job_svc,
     create_job as create_job_svc,
     update_job as update_job_svc,
-    delete_job as delete_job_svc
+    delete_job as delete_job_svc,
+    search_jobs as search_jobs_svc
 )
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -45,6 +46,13 @@ def create_job(
 @router.get("/", response_model=List[Job])
 def list_jobs(current_user: Optional[User] = Depends(get_current_user_optional)):
     return list_jobs_svc(current_user)
+
+@router.get("/search", response_model=List[Job])
+def search_jobs(
+    q: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    return search_jobs_svc(q, current_user)
 
 @router.get("/{job_id}", response_model=Job)
 def get_job(job_id: str):

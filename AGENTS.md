@@ -45,16 +45,24 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 
 ## Architecture & Security Patterns
 
-### 1. Service-Layer Decoupling (`src/services/`)
+### 1. Database & Vector Search (`src/db/`)
+- **Infrastructure**: The project uses **FerretDB 2.7.0** with a **PostgreSQL (DocumentDB)** backend. This provides a MongoDB-compatible API backed by a stable relational database.
+- **Vector Search**: The database driver (`src/db/mongo.py`) is enhanced with native vector search capabilities using FerretDB's `cosmosSearch`.
+  - **create_vector_index**: Supports creating HNSW and IVF indexes with configurable similarity metrics (Cosine, L2, Inner Product).
+  - **vector_search**: Implements the `$search` aggregation stage for high-performance approximate nearest neighbor retrieval.
+- **Search Logic**: Jobs are indexed by both their full description and AI-generated summary. The `search_jobs` service performs a dual-vector search and merges results to provide high-relevance job matching for recruiters and candidates.
+- **Authentication**: Uses `SCRAM-SHA-256` authentication. Credentials and connection parameters are managed via `src/config.py`.
+
+### 2. Service-Layer Decoupling (`src/services/`)
 - All core business logic (Jobs, Rankings, Evaluations) is decoupled from the API routes into a dedicated services layer.
 - **Hardened Permissions**: Every service function requires a `User` object and performs internal role-based access control (RBAC). This ensures that even if an AI tool attempts an unauthorized call, the service layer will block it.
 
-### 2. Role-Aware Tool Registry
+### 3. Role-Aware Tool Registry
 - The AI Assistant's capabilities are dynamically constructed based on the active user's session.
 - **Privacy Hardening**: Tools for sensitive operations (e.g., `create_job`) are only bound to the LLM when the user has the `recruiter` role. Candidates never see these capabilities exist.
 - **ID Secrecy**: Technical UUIDs are provided to the LLM via the hidden context. The LLM is instructed to use these for data retrieval but never print them in natural language, using human-friendly names instead.
 
-### 3. Interactive Entity Cards
+### 4. Interactive Entity Cards
 - **Injection Format**: The assistant uses a specialized `[[TYPE:ID]]` marker to inject rich UI components (Cards) into its chat bubbles.
 - **Persistence & Navigation**: Cards are interactive. Clicking a Job or Candidate card triggers a global state change, navigating the user to the relevant page while keeping the chat session persistent.
 

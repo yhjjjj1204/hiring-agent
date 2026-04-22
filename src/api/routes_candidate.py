@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, UploadFile, Form, BackgroundTasks
 
 from api.auth_models import User
 from api.deps import require_role, get_current_user
-from services.jobs import list_jobs, get_job
+from services.jobs import list_jobs, get_job, search_jobs as search_jobs_svc
 from services.rankings import get_my_submission
 from dashboard.repository import insert_candidate_ranking
 from api.routes_analyze import AnalyzeResumeResponse
@@ -31,6 +31,10 @@ _ALLOWED_EXT_HELP = ".pdf / .png / .jpg / .jpeg / .webp / .gif / .bmp / .tiff / 
 @router.get("/jobs")
 def list_candidate_jobs(current_user: User = Depends(require_role("candidate"))):
     return list_jobs(current_user)
+
+@router.get("/jobs/search")
+def search_candidate_jobs(q: str, current_user: User = Depends(require_role("candidate"))):
+    return search_jobs_svc(q, current_user)
 
 @router.get("/jobs/{job_id}")
 def get_candidate_job(job_id: str, current_user: User = Depends(require_role("candidate"))):

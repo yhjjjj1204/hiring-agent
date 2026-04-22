@@ -12,7 +12,7 @@ from dashboard.repository import ensure_candidate_ranking_indexes
 from agents.data_arrangement.repository import ensure_resume_ingest_indexes
 from agents.hr_strategy.repository import ensure_hr_strategy_indexes
 from api.auth_repository import ensure_auth_indexes
-from db.mongo import get_database
+from db.mongo import get_database, create_vector_index
 from graph.workflow import build_graph
 
 # Configure logging
@@ -42,6 +42,15 @@ async def lifespan(app: FastAPI):
             ensure_background_analysis_indexes()
             ensure_candidate_ranking_indexes()
             db.jobs.create_index("id", unique=True)
+            
+            # Ensure vector indexes for FerretDB
+            try:
+                logging.info("Ensuring vector indexes for jobs...")
+                create_vector_index("jobs", "desc_embedding", 1536, "job_desc_vector_idx")
+                create_vector_index("jobs", "summary_embedding", 1536, "job_summary_vector_idx")
+            except Exception as ve:
+                logging.warning(f"Could not create vector indexes (might already exist or FerretDB not supporting it yet): {ve}")
+
             logging.info("Database indexes ensured successfully.")
             break
         except (pymongo.errors.ServerSelectionTimeoutError, pymongo.errors.AutoReconnect) as e:

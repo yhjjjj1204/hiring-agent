@@ -13,7 +13,10 @@ import {
   Briefcase,
   Sun,
   Moon,
-  BarChart3
+  BarChart3,
+  Search,
+  Delete,
+  MapPin
 } from 'lucide-vue-next'
 import JobRequirementInput from './components/JobRequirementInput.vue'
 import AnalysisResult from './components/AnalysisResult.vue'
@@ -27,6 +30,54 @@ import ResumeManager from './components/ResumeManager.vue'
 const user = ref(null)
 const selectedJob = ref(null)
 const recruiterDashboardRef = ref(null)
+
+// Search State
+const searchQuery = ref('')
+const searchResults = ref([])
+const isSearching = ref(false)
+const showSearchResults = ref(false)
+let searchDebounce = null
+
+const handleSearch = async () => {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  
+  if (!searchQuery.value.trim()) {
+    searchResults.value = []
+    showSearchResults.value = false
+    return
+  }
+
+  searchDebounce = setTimeout(async () => {
+    isSearching.value = true
+    showSearchResults.value = true
+    try {
+      const token = localStorage.getItem('token')
+      const role = user.value?.role || 'candidate'
+      const res = await fetch(`/api/${role}/jobs/search?q=${encodeURIComponent(searchQuery.value)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        searchResults.value = await res.json()
+      }
+    } catch (e) {
+      console.error("Search failed", e)
+    } finally {
+      isSearching.value = false
+    }
+  }, 300)
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+  searchResults.value = []
+  showSearchResults.value = false
+}
+
+const selectSearchResult = (job) => {
+  selectJob(job)
+  clearSearch()
+}
+
 const personalStatement = ref('')
 const candidateProfile = ref(null)
 
@@ -205,8 +256,15 @@ async function fetchCandidateProfile() {
   }
 }
 
+const handleOutsideClick = (e) => {
+  if (showSearchResults.value && !e.target.closest('.search-container')) {
+    showSearchResults.value = false
+  }
+}
+
 onMounted(() => {
   document.documentElement.setAttribute('data-theme', theme.value)
+  window.addEventListener('click', handleOutsideClick)
   const savedUser = localStorage.getItem('user')
   if (savedUser) {
     user.value = JSON.parse(savedUser)
@@ -218,6 +276,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (candidatePollInterval) clearInterval(candidatePollInterval)
+  window.removeEventListener('click', handleOutsideClick)
 })
 
 function renderMarkdown(text) {
@@ -297,6 +356,57 @@ async function handleNavigateFromChat(payload) {
             <span class="logo-icon"><Briefcase :size="16" /></span> HiringAgent
           </h1>
         </div>
+
+        <div v-if="user" class="header-center">
+          <div class="search-container">
+            <div class="search-input-wrapper">
+              <Search class="search-icon" :size="16" />
+              <input 
+                type="text" 
+                v-model="searchQuery" 
+                @input="handleSearch"
+                @focus="showSearchResults = searchQuery.length > 0"
+                placeholder="Search jobs with AI..."
+                class="search-input"
+              />
+              <button v-if="searchQuery" class="clear-search" @click="clearSearch" title="Clear search">
+                <Delete :size="16" />
+              </button>
+            </div>
+            
+            <div v-if="showSearchResults" class="search-results-dropdown glass-card">
+              <div v-if="isSearching" class="search-loading">
+                <Loader2 class="spin" :size="16" /> Searching...
+              </div>
+              <div v-else-if="searchResults.length === 0" class="search-empty">
+                No jobs found matching your query.
+              </div>
+              <div v-else class="search-results-list">
+                <div 
+                  v-for="job in searchResults" 
+                  :key="job.id" 
+                  class="search-result-item"
+                  @click="selectSearchResult(job)"
+                >
+                  <div class="result-header">
+                    <div class="result-title-group">
+                      <Briefcase :size="14" class="result-icon" />
+                      <span class="result-title">{{ job.title }}</span>
+                    </div>
+                    <div v-if="job.submitted" class="result-badge ok">
+                      <Check :size="10" />
+                      Applied
+                    </div>
+                  </div>
+                  <div class="result-body">
+                    <p class="result-summary">{{ job.summary || job.description.substring(0, 100) + '...' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="header-right">
           <div class="header-actions">
             <button class="mini secondary theme-toggle" @click="toggleTheme" title="Toggle Theme">
@@ -467,6 +577,158 @@ async function handleNavigateFromChat(payload) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 2rem;
+}
+
+.header-center {
+  flex: 1;
+  max-width: 600px;
+}
+
+.search-container {
+  position: relative;
+  width: 100%;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--muted);
+}
+
+.search-input {
+  width: 100%;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 1rem 0.6rem 2.5rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.clear-search {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.clear-search:hover {
+  color: var(--err);
+  background: var(--err-glow);
+}
+
+.search-results-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+  padding: 0.5rem 0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.search-loading, .search-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.search-result-item {
+  padding: 0.85rem 1.25rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s ease;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: var(--accent-glow);
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.result-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.result-icon {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.result-title {
+  font-weight: 700;
+  color: var(--headings);
+  font-size: 0.95rem;
+}
+
+.result-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  text-transform: uppercase;
+}
+
+.result-summary {
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
 }
 
 .logo {

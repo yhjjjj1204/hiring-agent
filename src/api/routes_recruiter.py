@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, Query
 
 from api.auth_models import User
 from api.deps import require_role
-from services.jobs import list_jobs, get_job, create_job, update_job, delete_job
+from services.jobs import list_jobs, get_job, create_job, update_job, delete_job, search_jobs as search_jobs_svc
 from services.rankings import list_candidate_rankings, trigger_re_evaluation, trigger_re_evaluation_all
 from api.routes_chat import chat_message, get_chat_history, ChatRequest, ChatResponse, ChatMessage
 from api.routes_dashboard import get_ranking
@@ -27,6 +27,10 @@ router = APIRouter(prefix="/recruiter", tags=["recruiter"])
 @router.get("/jobs")
 def recruiter_list_jobs(current_user: User = Depends(require_role("recruiter"))):
     return list_jobs(current_user)
+
+@router.get("/jobs/search")
+def search_recruiter_jobs(q: str, current_user: User = Depends(require_role("recruiter"))):
+    return search_jobs_svc(q, current_user)
 
 @router.get("/jobs/{job_id}")
 def recruiter_get_job(job_id: str, current_user: User = Depends(require_role("recruiter"))):

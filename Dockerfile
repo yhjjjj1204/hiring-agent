@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM nixos/nix:latest as builder
 
 # Enable flakes
@@ -6,14 +7,18 @@ RUN echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 WORKDIR /app
 COPY . .
 
-# Build the hiring-agent package
-RUN nix build .#hiring-agent
+# 1. Mount a cache to /nix-cache
+# 2. Tell Nix to treat /nix-cache as a binary cache (substituter)
+# 3. After the build, copy the new paths into the cache
+RUN --mount=type=cache,target=/nix-cache \
+    nix build .#hiring-agent \
+      --extra-substituters "file:///nix-cache?trusted=1" \
+      --fallback && \
+    nix copy --to "file:///nix-cache" .#hiring-agent && \
+    mkdir -p /tmp/nix-store-closure && \
+    xargs cp -R -t /tmp/nix-store-closure < <(nix-store -qR result)
 
-# Extract the full closure to a directory
-RUN mkdir -p /tmp/nix-store-closure
-RUN xargs cp -R -t /tmp/nix-store-closure < <(nix-store -qR result)
-
-# Use a slightly more complete base for runtime to ensure /bin/sh and basic libs are happy
+# Final stage
 FROM debian:bookworm-slim
 
 # Install CA certificates (essential for OpenAI/GitHub API calls)

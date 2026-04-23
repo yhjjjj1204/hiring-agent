@@ -1,6 +1,9 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useWebSocket } from '../websocket'
+
+const { subscribe: subscribeWS, send: sendWS } = useWebSocket()
 import { marked } from 'marked'
 import { 
   ChevronLeft, 
@@ -28,7 +31,32 @@ const selectedJob = ref(null)
 const selectedCandidate = ref(null)
 const candidates = ref([])
 const status = ref('')
-let pollInterval = null
+
+let wsUnsubscribe = null
+onMounted(() => {
+  wsUnsubscribe = subscribeWS((message) => {
+    if (message.type === 'ranking_update' && selectedJob.value && message.job_id === selectedJob.value.id) {
+      const idx = candidates.value.findIndex(c => c.ranking_id === message.ranking_id)
+      if (idx !== -1) {
+        candidates.value[idx] = message.data
+      } else {
+        candidates.value.push(message.data)
+      }
+      
+      if (selectedCandidate.value && selectedCandidate.value.ranking_id === message.ranking_id) {
+        selectedCandidate.value = message.data
+      }
+    }
+    
+    if (message.type === 'job_update' && selectedJob.value && message.job_id === selectedJob.value.id) {
+      selectedJob.value.summary = message.summary
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (wsUnsubscribe) wsUnsubscribe()
+})
 
 // Job editing and preview state
 const isEditingJob = ref(false)
@@ -184,6 +212,10 @@ watch(() => route.params, async (params) => {
   if (!selectedJob.value || selectedJob.value.id !== job_id) {
     await fetchJob(job_id)
   }
+
+  if (selectedJob.value) {
+    sendWS({ type: 'subscribe', job_id: selectedJob.value.id })
+  }
   
   // 2. Load Candidates if needed
   if (selectedJob.value && candidates.value.length === 0) {
@@ -209,18 +241,6 @@ watch(() => route.params, async (params) => {
     }
   }
 }, { immediate: true, deep: true })
-
-// Polling
-watch(selectedJob, (newJob) => {
-  if (newJob) {
-    if (!pollInterval) pollInterval = setInterval(fetchCandidates, 5000)
-  } else if (pollInterval) {
-    clearInterval(pollInterval)
-    pollInterval = null
-  }
-})
-
-onUnmounted(() => { if (pollInterval) clearInterval(pollInterval) })
 
 function reset() {
   router.push('/')

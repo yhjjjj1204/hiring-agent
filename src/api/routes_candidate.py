@@ -90,6 +90,7 @@ async def update_candidate_resume(
     )
 
     async def _analyze_profile_resume():
+        from api.websockets import manager
         try:
             extracted = await run_in_threadpool(extract_and_arrange_resume_from_path, str(dest_path))
             arranged = extracted.arranged_profile.model_dump(mode="json")
@@ -100,12 +101,23 @@ async def update_candidate_resume(
                     "arranged_resume": arranged
                 }}
             )
+            # Notify via WebSocket
+            await manager.send_to_user(current_user.username, {
+                "type": "profile_update",
+                "status": "ready",
+                "arranged_resume": arranged,
+                "resume_filename": raw_name
+            })
         except Exception as e:
             print(f"Profile resume analysis failed for {current_user.username}: {e}")
             db.users.update_one(
                 {"username": current_user.username},
                 {"$set": {"resume_status": "error"}}
             )
+            await manager.send_to_user(current_user.username, {
+                "type": "profile_update",
+                "status": "error"
+            })
 
     background_tasks.add_task(_analyze_profile_resume)
     return {"status": "evaluating"}

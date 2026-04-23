@@ -2,6 +2,9 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { MessageSquare, X, Send, Trash2, Bot, User, Minus, Maximize2, Minimize2, Brain } from 'lucide-vue-next'
 import { marked } from 'marked'
+import { useWebSocket } from '../websocket'
+
+const { subscribe: subscribeWS, send: sendWS } = useWebSocket()
 import ChatCard from './ChatCard.vue'
 
 const props = defineProps({
@@ -199,66 +202,12 @@ async function sendMessage() {
   scrollToBottom()
   typingStatus.value = 'Thinking...'
   
-  try {
-    const token = localStorage.getItem('token')
-    const res = await fetch(`${apiBase.value}/message`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        message: currentMsg,
-        context: filteredContext.value,
-        context_labels: currentLabels
-      })
-    })
-    
-    if (!res.ok) throw new Error("Failed to connect to assistant")
-    
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
-      
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop()
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.substring(6))
-            if (data.status) {
-              typingStatus.value = data.status
-            } else if (data.reply) {
-              history.value.push({ 
-                role: 'assistant', 
-                content: data.reply,
-                timestamp: new Date().toISOString()
-              })
-            } else if (data.error) {
-              throw new Error(data.error)
-            }
-          } catch (e) {
-            console.error("Failed to parse SSE data", e)
-          }
-        }
-      }
-    }
-  } catch (e) {
-    history.value.push({ 
-      role: 'assistant', 
-      content: "Error: " + e.message,
-      timestamp: new Date().toISOString()
-    })
-  } finally {
-    typingStatus.value = ''
-    scrollToBottom()
-  }
+  sendWS({
+    type: 'chat_message',
+    message: currentMsg,
+    context: filteredContext.value,
+    context_labels: currentLabels
+  })
 }
 
 function scrollToBottom() {
@@ -287,15 +236,41 @@ function onCardNavigate(payload) {
   emit('navigate', payload)
 }
 
+let wsUnsubscribe = null
 onMounted(() => {
   loadHistory()
   document.addEventListener('selectionchange', handleSelectionChange)
   document.addEventListener('mousedown', handleMouseDown)
+  
+  wsUnsubscribe = subscribeWS((data) => {
+    if (data.type === 'chat_update') {
+      if (data.status) {
+        typingStatus.value = data.status
+      } else if (data.reply) {
+        typingStatus.value = ''
+        history.value.push({ 
+          role: 'assistant', 
+          content: data.reply,
+          timestamp: new Date().toISOString()
+        })
+        scrollToBottom()
+      } else if (data.error) {
+        typingStatus.value = ''
+        history.value.push({ 
+          role: 'assistant', 
+          content: "Error: " + data.error,
+          timestamp: new Date().toISOString()
+        })
+        scrollToBottom()
+      }
+    }
+  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('selectionchange', handleSelectionChange)
   document.removeEventListener('mousedown', handleMouseDown)
+  if (wsUnsubscribe) wsUnsubscribe()
 })
 </script>
 

@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useWebSocket } from '../websocket'
+
+const { subscribe: subscribeWS } = useWebSocket()
 import { FileText, Github, GraduationCap, User, Loader2, CheckCircle, RefreshCw, AlertCircle, Brain, ChevronLeft } from 'lucide-vue-next'
 import ResumeUpload from './ResumeUpload.vue'
 import CandidateSnapshot from './CandidateSnapshot.vue'
@@ -22,6 +25,32 @@ const file = ref(null)
 const isWorking = ref(false)
 const statusMsg = ref('')
 const statusClass = ref('')
+
+let wsUnsubscribe = null
+onMounted(() => {
+  fetchProfile()
+  
+  wsUnsubscribe = subscribeWS((message) => {
+    if (message.type === 'profile_update') {
+      profile.status = message.status
+      if (message.status === 'ready') {
+        profile.arranged_resume = message.arranged_resume
+        profile.resume_filename = message.resume_filename
+        isWorking.value = false
+        statusMsg.value = "Resume analyzed successfully"
+        statusClass.value = "ok"
+      } else if (message.status === 'error') {
+        isWorking.value = false
+        statusMsg.value = "Analysis failed"
+        statusClass.value = "err"
+      }
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (wsUnsubscribe) wsUnsubscribe()
+})
 
 async function fetchProfile() {
   const token = localStorage.getItem('token')
@@ -81,7 +110,7 @@ async function uploadResume() {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (res.ok) {
-      startPollingStatus()
+      // Background task started, WS will notify
     } else {
       isWorking.value = false
       profile.status = 'error'
@@ -96,41 +125,8 @@ async function uploadResume() {
   }
 }
 
-let pollInterval = null
-function startPollingStatus() {
-  if (pollInterval) clearInterval(pollInterval)
-  pollInterval = setInterval(async () => {
-    const token = localStorage.getItem('token')
-    try {
-      const res = await fetch('/api/candidate/profile', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (res.ok) {
-        const data = await res.json()
-        profile.status = data.status
-        profile.arranged_resume = data.arranged_resume
-        profile.resume_filename = data.resume_filename
-        
-        if (data.status === 'ready' || data.status === 'error') {
-          clearInterval(pollInterval)
-          pollInterval = null
-          isWorking.value = false
-          statusMsg.value = data.status === 'ready' ? "Resume analyzed successfully" : "Analysis failed"
-          statusClass.value = data.status === 'ready' ? "ok" : "err"
-        }
-      }
-    } catch (e) {
-      console.error("Polling failed", e)
-    }
-  }, 3000)
-}
-
 watch(file, () => {
   if (file.value) uploadResume()
-})
-
-onMounted(() => {
-  fetchProfile()
 })
 </script>
 

@@ -1,8 +1,11 @@
 import logging
+import json
+import time
+import pymongo
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request, APIRouter
+from fastapi import FastAPI, Request, APIRouter, WebSocket, WebSocketDisconnect, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -15,16 +18,17 @@ from api.auth_repository import ensure_auth_indexes
 from db.mongo import get_database, create_vector_index
 from graph.workflow import build_graph
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
-
 # Role-based routers
 from api.routes_auth import router as auth_router
 from api.routes_candidate import router as candidate_router
 from api.routes_recruiter import router as recruiter_router
+from api.routes_chat import run_chat_logic
+from api.websockets import manager
+from api.auth_repository import get_user as get_user_from_db
+from api.auth_models import User
 
-import time
-import pymongo
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -63,6 +67,61 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Hiring Agent API", version=__version__, lifespan=lifespan)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
+    if not token:
+        await websocket.close(code=1008) # Policy Violation
+        return
+
+    user_db = get_user_from_db(token)
+    if not user_db:
+        await websocket.close(code=1008)
+        return
+
+    user = User(username=user_db.username, role=user_db.role)
+    await manager.connect(websocket, user.username)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            # Handle subscriptions
+            if message.get("type") == "subscribe" and message.get("job_id"):
+                job_id = message["job_id"]
+                if user.role == "recruiter":
+                    await manager.subscribe(websocket, f"job:{job_id}")
+                    await websocket.send_text(json.dumps({"type": "subscribed", "job_id": job_id}))
+                else:
+                    await websocket.send_text(json.dumps({"type": "error", "message": "Only recruiters can subscribe to jobs"}))
+            
+            # Handle chat messages
+            elif message.get("type") == "chat_message":
+                msg_text = message.get("message")
+                ctx = message.get("context")
+                ctx_labels = message.get("context_labels")
+                
+                async def send_ws_chat_update(data: dict):
+                    await websocket.send_text(json.dumps({
+                        "type": "chat_update",
+                        **data
+                    }))
+
+                bt = BackgroundTasks()
+                await run_chat_logic(
+                    msg_text,
+                    ctx,
+                    ctx_labels,
+                    user,
+                    bt,
+                    send_ws_chat_update
+                )
+            
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user.username)
+    except Exception as e:
+        logging.error(f"WebSocket error for {user.username}: {e}")
+        manager.disconnect(websocket, user.username)
 
 # Main API router
 api_router = APIRouter(prefix="/api")

@@ -117,8 +117,40 @@ async def _background_evaluate_resume(
             scorecard=sc_dict,
             arranged_resume=arranged
         )
+
+        # Notify via WebSocket
+        from api.websockets import manager
+        from services.rankings import get_ranking_by_id
+        
+        ranking_data = get_ranking_by_id(ranking_id)
+        if ranking_data:
+            job_id = ranking_data.get("job_id")
+            # 1. Notify candidate
+            await manager.send_to_user(username, {
+                "type": "submission_update",
+                "job_id": job_id,
+                "status": "ready",
+                "data": ranking_data
+            })
+            
+            # 2. Notify recruiter (if watching this job)
+            if job_id:
+                await manager.broadcast_to_topic(f"job:{job_id}", {
+                    "type": "ranking_update",
+                    "job_id": job_id,
+                    "ranking_id": ranking_id,
+                    "status": "ready",
+                    "data": ranking_data
+                })
+
     except Exception as e:
         print(f"Background evaluation failed for {ranking_id}: {e}")
+        from api.websockets import manager
+        await manager.send_to_user(username, {
+            "type": "submission_update",
+            "ranking_id": ranking_id,
+            "status": "error"
+        })
 
 
 @router.post("/resume", response_model=AnalyzeResumeResponse)

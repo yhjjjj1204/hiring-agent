@@ -1,6 +1,9 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useWebSocket } from './websocket'
+
+const { connect: connectWS, disconnect: disconnectWS, subscribe: subscribeWS } = useWebSocket()
 import { marked } from 'marked'
 import { 
   ChevronLeft, 
@@ -103,7 +106,6 @@ const currentArrangedResume = ref(null)
 const existingSubmission = ref(null)
 const showReSubmitForm = ref(false)
 const isJobExpanded = ref(false)
-let candidatePollInterval = null
 
 async function runAnalysis() {
   if (!selectedJob.value?.id) {
@@ -147,7 +149,6 @@ async function runAnalysis() {
     statusClass.value = "ok"
 
     await fetchMySubmission()
-    startPollingCandidateStatus()
   } catch (e) {
     status.value = "Request failed: " + (e && e.message ? e.message : String(e))
     statusClass.value = "err"
@@ -171,7 +172,6 @@ async function fetchMySubmission() {
       
       if (data.status === 'evaluating') {
         isWorking.value = true
-        startPollingCandidateStatus()
       } else {
         isWorking.value = false
       }
@@ -186,40 +186,9 @@ async function fetchMySubmission() {
   }
 }
 
-async function startPollingCandidateStatus() {
-  if (candidatePollInterval) clearInterval(candidatePollInterval)
-  
-  const token = localStorage.getItem('token')
-  
-  candidatePollInterval = setInterval(async () => {
-    try {
-      const res = await fetch(`/api/candidate/my-submission/${selectedJob.value.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await res.json()
-      if (res.ok && data) {
-        existingSubmission.value = data
-        if (data.status === 'ready') {
-          currentArrangedResume.value = data.arranged_resume
-          status.value = "Update complete! Here is your objective resume summary."
-          clearInterval(candidatePollInterval)
-          candidatePollInterval = null
-          isWorking.value = false
-          showReSubmitForm.value = false
-        }
-      } else if (res.ok && !data) {
-        clearInterval(candidatePollInterval)
-        candidatePollInterval = null
-        isWorking.value = false
-      }
-    } catch (e) {
-      console.error("Polling failed", e)
-    }
-  }, 3000)
-}
-
 function onAuthenticated(u) {
   user.value = u
+  connectWS()
 }
 
 function logout() {
@@ -227,7 +196,7 @@ function logout() {
   localStorage.removeItem('user')
   user.value = null
   selectedJob.value = null
-  if (candidatePollInterval) clearInterval(candidatePollInterval)
+  disconnectWS()
   router.push('/')
 }
 
@@ -268,14 +237,33 @@ onMounted(() => {
   const savedUser = localStorage.getItem('user')
   if (savedUser) {
     user.value = JSON.parse(savedUser)
+    connectWS()
     if (user.value.role === 'candidate') {
       fetchCandidateProfile()
     }
   }
+
+  subscribeWS((message) => {
+    if (message.type === 'submission_update' && selectedJob.value && message.job_id === selectedJob.value.id) {
+      if (message.status === 'ready') {
+        existingSubmission.value = message.data
+        currentArrangedResume.value = message.data.arranged_resume
+        status.value = "Update complete! Here is your objective resume summary."
+        isWorking.value = false
+        showReSubmitForm.value = false
+      } else if (message.status === 'error') {
+        status.value = "Analysis failed. Please try again."
+        isWorking.value = false
+      }
+    }
+    if (message.type === 'profile_update' && user.value?.role === 'candidate') {
+      fetchCandidateProfile()
+    }
+  })
 })
 
 onUnmounted(() => {
-  if (candidatePollInterval) clearInterval(candidatePollInterval)
+  disconnectWS()
   window.removeEventListener('click', handleOutsideClick)
 })
 

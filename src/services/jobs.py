@@ -76,6 +76,9 @@ def _generate_job_summary(title: str, description: str, username: Optional[str] 
         print(f"Failed to generate job summary: {e}")
         return ""
 
+from api.websockets import manager
+import json
+
 def _background_generate_summary(job_id: str, title: str, description: str, username: str):
     summary = _generate_job_summary(title, description, username)
     if summary:
@@ -93,6 +96,14 @@ def _background_generate_summary(job_id: str, title: str, description: str, user
             update_fields["summary_embedding"] = summary_embedding
             
         db.jobs.update_one({"id": job_id}, {"$set": update_fields})
+        
+        # Notify via WebSocket
+        import asyncio
+        asyncio.run(manager.broadcast_to_topic(f"job:{job_id}", {
+            "type": "job_update",
+            "job_id": job_id,
+            "summary": summary
+        }))
 
 def create_job(title: str, description: str, current_user: User, background_tasks: Optional[BackgroundTasks] = None) -> dict[str, Any]:
     if current_user.role != "recruiter":

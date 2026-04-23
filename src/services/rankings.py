@@ -36,6 +36,13 @@ def get_my_submission(job_id: str, current_user: User) -> dict[str, Any]:
     ranking.pop("_id", None)
     return ranking
 
+def get_ranking_by_id(ranking_id: str) -> Optional[dict[str, Any]]:
+    db = get_database()
+    ranking = db.candidate_rankings.find_one({"ranking_id": ranking_id})
+    if ranking:
+        ranking.pop("_id", None)
+    return ranking
+
 async def trigger_re_evaluation(
     ranking_id: str,
     current_user: User,

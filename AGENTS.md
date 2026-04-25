@@ -124,6 +124,25 @@ The frontend is a modular **Vue 3** application built with **Vite**.
 - `frontend/`: Vue 3 application source code.
 - `uploads/`: Permanent storage for candidate resumes.
 
+## Testing & Quality Assurance
+
+### 1. Test Architecture
+The project maintains a comprehensive test suite using **pytest**, achieving >70% code coverage across core logic, agents, and API routes.
+- **Unit Tests (`tests/unit/`)**: Verify individual component logic in isolation. Agents (OCR, Scoring, Data Arrangement) and Services (Jobs, Rankings) are thoroughly covered using mocks for LLM and Database dependencies.
+- **Integration Tests (`tests/integration/`)**: Verify end-to-end API workflows and role-based access control (RBAC). Uses FastAPI's `TestClient` and a mocked database state to ensure API integrity.
+- **Global Fixtures (`tests/conftest.py`)**: Centralized mocking for OpenAI, GitHub, and MongoDB. Includes a global `autouse` setup that provides a safe, no-op environment for local testing without requiring real API keys.
+
+### 2. Running Tests
+Tests are executed within the **Nix** development environment to ensure all dependencies (including `pytest-asyncio`, `pytest-cov`, and `pytest-mock`) are consistent.
+```bash
+nix develop --command pytest --cov=src --cov-report=term-missing
+```
+
+### 3. Continuous Integration (CI)
+Automated quality gates are enforced via GitHub Actions:
+- **Run Tests (`test.yml`)**: Triggered on every push. It orchestrates a fresh **FerretDB** instance via Docker Compose, sets up the Nix environment, and executes the full test suite.
+- **Build Container (`build.yml`)**: Verifies that the multi-stage Nix Docker build remains functional and capable of producing a production-ready image.
+
 ## LLM Interaction & Engineering Guidelines
 
 1. **Commit Protocol**: When a major functionality or feature is added, the LLM must prompt the user to commit the changes to version control.

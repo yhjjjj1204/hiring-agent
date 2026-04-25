@@ -18,9 +18,12 @@ jobs:
 
       - name: Start Database
         run: |
-          # Use 'docker compose' (v2) which is standard on modern runners
-          docker compose up -d --wait ferretdb
-          echo "FerretDB is healthy"
+          docker compose up -d ferretdb
+
+          echo "Waiting for FerretDB to be ready..."
+          # Use a simple loop on the runner host (which has bash)
+          timeout 60s bash -c 'until printf "" 2>>/dev/null >>/dev/tcp/127.0.0.1/27017; do sleep 1; done'
+          echo "FerretDB is up"
 
       - name: Run Pytest
         run: |

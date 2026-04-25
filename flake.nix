@@ -41,6 +41,7 @@
                 ps.pytest
                 ps.pytest-mock
                 ps.pytest-cov
+                ps.pytest-asyncio
               ];
               pythonEnv = pkgs.python3.withPackages pythonDeps;
             in

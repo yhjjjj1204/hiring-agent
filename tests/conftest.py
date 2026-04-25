@@ -21,14 +21,17 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def mock_get_database(monkeypatch):
     mock_db = MagicMock()
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
     
-    # Patch the function that returns the database
+    # Patch get_mongo_client and get_database in db.mongo
+    monkeypatch.setattr("db.mongo.get_mongo_client", lambda: mock_client)
+    monkeypatch.setattr("db.mongo.get_database", lambda: mock_db)
+    
+    # Patch everywhere else it might have been imported
     def get_db_side_effect():
         return mock_db
         
-    monkeypatch.setattr("db.mongo.get_database", get_db_side_effect)
-    
-    # Also patch everywhere it was imported as a name
     for module_name in [
         "services.jobs", "services.rankings", "services.evaluations",
         "monitoring.usage_service", "dashboard.repository", "api.auth_repository",
@@ -47,7 +50,6 @@ def mock_get_database(monkeypatch):
 
 @pytest.fixture
 def client(mock_get_database):
-    # Important: Import app AFTER patching get_database
     from api.main import app
     with TestClient(app) as c:
         yield c
@@ -64,7 +66,9 @@ def mock_llm_response():
 def mock_openai(monkeypatch):
     mock_client = MagicMock()
     mock_completions = MagicMock()
+    mock_embeddings = MagicMock()
     mock_client.chat.completions = mock_completions
+    mock_client.embeddings = mock_embeddings
     mock_create = MagicMock()
     
     def side_effect(*args, **kwargs):
@@ -77,7 +81,14 @@ def mock_openai(monkeypatch):
     
     mock_create.side_effect = side_effect
     mock_completions.create = mock_create
-    monkeypatch.setattr("agents.ocr_agent.OpenAI", lambda api_key: mock_client)
+    mock_embeddings.create = MagicMock()
+
+    for path in ["agents.ocr_agent.OpenAI", "safety.guardrails.OpenAI", "db.mongo.OpenAI"]:
+        try:
+            monkeypatch.setattr(path, lambda **kwargs: mock_client)
+        except (AttributeError, ImportError):
+            pass
+
     return mock_create
 
 @pytest.fixture
@@ -91,7 +102,6 @@ def mock_chat_openai(monkeypatch):
         
     mock_instance.with_structured_output = mock_with_structured_output
     
-    # Patch all the places ChatOpenAI is imported
     for path in [
         "agents.data_arrangement.agent.ChatOpenAI",
         "agents.scoring.agent.ChatOpenAI",

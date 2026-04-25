@@ -6,6 +6,14 @@ from unittest.mock import MagicMock
 # Ensure src is in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
+@pytest.fixture(autouse=True)
+def setup_test_env(monkeypatch):
+    """Global fixture to provide dummy environment variables for all tests."""
+    monkeypatch.setenv("OPENAI_API_KEY", "mock-key-for-testing")
+    monkeypatch.setenv("GITHUB_TOKEN", "mock-github-token")
+    # Leave HIRING_AGENT_API_KEY empty so verify_hiring_agent_api_key is a no-op by default
+    monkeypatch.setenv("HIRING_AGENT_API_KEY", "")
+
 from api.auth_models import User
 
 @pytest.fixture

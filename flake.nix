@@ -38,6 +38,9 @@
                 ps.pydantic
                 ps.pymongo
                 ps.python-multipart
+                ps.pytest
+                ps.pytest-mock
+                ps.pytest-cov
               ];
               pythonEnv = pkgs.python3.withPackages pythonDeps;
             in

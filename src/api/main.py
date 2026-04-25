@@ -22,6 +22,7 @@ from graph.workflow import build_graph
 from api.routes_auth import router as auth_router
 from api.routes_candidate import router as candidate_router
 from api.routes_recruiter import router as recruiter_router
+from api.routes_data import router as data_router
 from api.routes_chat import run_chat_logic
 from api.websockets import manager
 from api.auth_repository import get_user as get_user_from_db
@@ -128,6 +129,7 @@ api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
 api_router.include_router(candidate_router)
 api_router.include_router(recruiter_router)
+api_router.include_router(data_router)
 
 app.include_router(api_router)
 

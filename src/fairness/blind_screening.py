@@ -23,10 +23,9 @@ _RE_NAME_LABEL = re.compile(
     r"(姓名|名字|本名)[:：\s]*([\u4e00-\u9fa5·]{2,16})",
     re.I,
 )
-# English Mr./Ms. + Name
+# English Mr./Ms. + Name or First Last (heuristic)
 _RE_EN_NAME = re.compile(
-    r"\b(Mr|Ms|Mrs|Miss)\.?\s+[A-Z][a-zA-Z'-]+\b",
-    re.I,
+    r"\b(?:Mr|Ms|Mrs|Miss)\.?\s+[A-Z][a-zA-Z'-]+\b|\b[A-Z][a-z]+\s+[A-Z][a-z]+\b",
 )
 
 # Gender related (labels + common tokens)

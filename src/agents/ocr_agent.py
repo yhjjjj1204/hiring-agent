@@ -132,13 +132,9 @@ def _chat_completion(
         raise RuntimeError("OpenAI returned empty content")
     
     # RECORD USAGE AUTOMATICALLY
-    from monitoring.context import current_username, current_function_id
-    from monitoring.usage_service import record_usage
-    
-    username = current_username.get()
-    function_id = current_function_id.get() or "ocr"
-    if username and resp.usage:
-        record_usage(username, function_id, resp.usage.prompt_tokens, resp.usage.completion_tokens)
+    from monitoring.usage_service import record_openai_usage
+
+    record_openai_usage(resp.usage, default_function_id="ocr")
 
     return content
 

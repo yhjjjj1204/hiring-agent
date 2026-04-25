@@ -45,7 +45,12 @@ import config
 from monitoring.token_callback import get_token_callback
 from monitoring.context import set_execution_context
 
-def _generate_job_summary(title: str, description: str, username: Optional[str] = None) -> str:
+def _generate_job_summary(
+    title: str,
+    description: str,
+    username: Optional[str] = None,
+    user_role: Optional[str] = None,
+) -> str:
     """Generate a 2-3 sentence AI summary of the job description."""
     if not config.OPENAI_API_KEY:
         return ""
@@ -55,7 +60,7 @@ def _generate_job_summary(title: str, description: str, username: Optional[str] 
         return ""
 
     if username:
-        set_execution_context(username=username, function_id="job_summary")
+        set_execution_context(username=username, function_id="job_summary", user_role=user_role)
 
     try:
         llm = ChatOpenAI(
@@ -79,8 +84,8 @@ def _generate_job_summary(title: str, description: str, username: Optional[str] 
 from api.websockets import manager
 import json
 
-def _background_generate_summary(job_id: str, title: str, description: str, username: str):
-    summary = _generate_job_summary(title, description, username)
+def _background_generate_summary(job_id: str, title: str, description: str, username: str, user_role: str):
+    summary = _generate_job_summary(title, description, username, user_role)
     if summary:
         db = get_database()
         
@@ -124,10 +129,17 @@ def create_job(title: str, description: str, current_user: User, background_task
     if len(description) >= 300:
         summary = "generating"
         if background_tasks:
-            background_tasks.add_task(_background_generate_summary, job_id, title, description, current_user.username)
+            background_tasks.add_task(
+                _background_generate_summary,
+                job_id,
+                title,
+                description,
+                current_user.username,
+                current_user.role,
+            )
         else:
             # Fallback for when background_tasks is not provided (e.g. some internal calls)
-            summary = _generate_job_summary(title, description, current_user.username)
+            summary = _generate_job_summary(title, description, current_user.username, current_user.role)
             if summary:
                 try:
                     summary_embedding = generate_embedding(f"{title}\n{summary}")
@@ -178,9 +190,16 @@ def update_job(job_id: str, title: Optional[str], description: Optional[str], cu
             if len(new_desc) >= 300:
                 update_data["summary"] = "generating"
                 if background_tasks:
-                    background_tasks.add_task(_background_generate_summary, job_id, new_title, new_desc, current_user.username)
+                    background_tasks.add_task(
+                        _background_generate_summary,
+                        job_id,
+                        new_title,
+                        new_desc,
+                        current_user.username,
+                        current_user.role,
+                    )
                 else:
-                    summary = _generate_job_summary(new_title, new_desc, current_user.username)
+                    summary = _generate_job_summary(new_title, new_desc, current_user.username, current_user.role)
                     update_data["summary"] = summary
                     if summary:
                         try:

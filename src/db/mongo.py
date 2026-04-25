@@ -29,6 +29,14 @@ def generate_embedding(text: str, model: str = "text-embedding-3-small") -> List
 
     client = OpenAI(api_key=config.OPENAI_API_KEY)
     response = client.embeddings.create(input=[text], model=model)
+    # Best-effort usage tracking for embedding calls.
+    try:
+        from monitoring.usage_service import record_openai_usage
+
+        record_openai_usage(response.usage, default_function_id="embedding")
+    except Exception:
+        # Never fail embedding generation due to monitoring issues.
+        pass
     return response.data[0].embedding
 
 

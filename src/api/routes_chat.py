@@ -17,6 +17,7 @@ from api.deps import get_current_user
 from db.mongo import get_database
 from services.jobs import list_jobs, get_job, create_job
 from services.rankings import list_candidate_rankings
+from safety.guardrails import moderate_text
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -137,12 +138,10 @@ def _get_chat_model() -> ChatOpenAI:
     if not config.OPENAI_API_KEY:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
     
-    from monitoring.token_callback import get_token_callback
     return ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0, 
         api_key=config.OPENAI_API_KEY,
-        callbacks=get_token_callback(),
     )
 
 @router.get("/history", response_model=List[ChatMessage])
@@ -220,14 +219,44 @@ GUIDELINES:
     
     from monitoring.context import set_execution_context
     from monitoring.token_callback import get_token_callback
-    set_execution_context(username=current_user.username, function_id="chatbot")
+    set_execution_context(username=current_user.username, function_id="chatbot", user_role=current_user.role)
     cb = get_token_callback(username=current_user.username, function_id="chatbot")
 
     try:
+        in_dec = moderate_text(
+            user_message,
+            stage="chat.user_input",
+            role=current_user.role,
+            username=current_user.username,
+            user_goal=user_message,
+        )
+        if in_dec.blocked:
+            await send_func({"reply": "Your message cannot be processed due to safety policy. Please rephrase and try again."})
+            return
+
         await send_func({'status': 'Thinking...'})
         response = await run_in_threadpool(model_with_tools.invoke, messages, {"callbacks": cb})
         
         if response.tool_calls:
+            action_context = []
+            for tc in response.tool_calls:
+                action_context.append(
+                    {
+                        "tool_name": tc.get("name"),
+                        "arguments": tc.get("args"),
+                    },
+                )
+            tc_dec = moderate_text(
+                "assistant requested tool execution",
+                stage="chat.tool_calls",
+                role=current_user.role,
+                username=current_user.username,
+                user_goal=user_message,
+                action_context=action_context,
+            )
+            if tc_dec.blocked:
+                await send_func({"reply": "The request was blocked by safety checks before tool execution."})
+                return
             await send_func({'status': 'Calling Tools...'})
             messages.append(response)
             for tc in response.tool_calls:
@@ -246,6 +275,15 @@ GUIDELINES:
             reply_content = str(final_response.content)
         else:
             reply_content = str(response.content)
+
+        out_dec = moderate_text(
+            reply_content,
+            stage="chat.final_output",
+            role=current_user.role,
+            username=current_user.username,
+        )
+        if out_dec.blocked:
+            reply_content = "I can’t provide that content. Please adjust your request."
         
         now = datetime.now(timezone.utc)
         db.chat_history.insert_many([

@@ -6,8 +6,7 @@ from uuid import UUID
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from monitoring.context import current_username, current_function_id
-from monitoring.usage_service import record_usage
+from monitoring.usage_service import record_usage_with_context
 
 class TokenUsageCallbackHandler(BaseCallbackHandler):
     """
@@ -27,12 +26,6 @@ class TokenUsageCallbackHandler(BaseCallbackHandler):
         parent_run_id: Optional[UUID] = None,
         **kwargs: Any,
     ) -> Any:
-        username = self.username_override or current_username.get()
-        function_id = self.function_id_override or current_function_id.get() or "unknown"
-        
-        if not username:
-            return
-
         # 1. Try to get total usage from llm_output
         total_input = 0
         total_output = 0
@@ -62,7 +55,13 @@ class TokenUsageCallbackHandler(BaseCallbackHandler):
                         total_output += u.get("completion_tokens", 0)
 
         if total_input > 0 or total_output > 0:
-            record_usage(username, function_id, total_input, total_output)
+            record_usage_with_context(
+                input_tokens=total_input,
+                output_tokens=total_output,
+                username=self.username_override,
+                function_id=self.function_id_override,
+                default_function_id="unknown",
+            )
 
 def get_token_callback(username: Optional[str] = None, function_id: Optional[str] = None) -> List[TokenUsageCallbackHandler]:
     """Returns a list with the callback handler for easy inclusion in LLM calls."""

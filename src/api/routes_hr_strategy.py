@@ -80,7 +80,7 @@ def post_message(
         raise HTTPException(status_code=404, detail="Session not found")
 
     # SET CONTEXT FOR AUTOMATIC TOKEN TRACKING
-    set_execution_context(username=current_user.username, function_id="hr_strategy_chat")
+    set_execution_context(username=current_user.username, function_id="hr_strategy_chat", user_role=current_user.role)
 
     mon = get_monitor()
     mon.http_activity("hr_strategy_chat", correlation_id=session_id, phase="start")

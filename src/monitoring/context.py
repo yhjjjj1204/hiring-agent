@@ -12,7 +12,16 @@ current_thread_id: ContextVar[Optional[str]] = ContextVar("current_thread_id", d
 # Current active agent/function ID
 current_function_id: ContextVar[Optional[str]] = ContextVar("current_function_id", default=None)
 
-def set_execution_context(username: Optional[str] = None, thread_id: Optional[str] = None, function_id: Optional[str] = None):
+# Current active user role
+current_user_role: ContextVar[Optional[str]] = ContextVar("current_user_role", default=None)
+
+
+def set_execution_context(
+    username: Optional[str] = None,
+    thread_id: Optional[str] = None,
+    function_id: Optional[str] = None,
+    user_role: Optional[str] = None,
+):
     """Convenience to set multiple context variables."""
     if username is not None:
         current_username.set(username)
@@ -20,3 +29,5 @@ def set_execution_context(username: Optional[str] = None, thread_id: Optional[st
         current_thread_id.set(thread_id)
     if function_id is not None:
         current_function_id.set(function_id)
+    if user_role is not None:
+        current_user_role.set(user_role)

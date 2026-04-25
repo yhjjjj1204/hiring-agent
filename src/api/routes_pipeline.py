@@ -19,6 +19,7 @@ from graph.pipeline import (
 )
 from monitoring.pipeline_hooks import mark_pipeline_run_terminal
 from monitoring.registry import get_monitor
+from monitoring.context import set_execution_context
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
@@ -59,12 +60,19 @@ def pipeline_invoke(req: PipelineInvokeRequest, current_user: User = Depends(get
         raise HTTPException(status_code=400, detail="thread_id is required when using resume for HITL")
 
     tid = req.thread_id or str(uuid.uuid4())
+    set_execution_context(
+        username=current_user.username,
+        thread_id=tid,
+        function_id="pipeline",
+        user_role=current_user.role,
+    )
     cfg = pipeline_config(tid)
     g = build_hiring_pipeline_graph()
     mon = get_monitor()
     
     meta = {k: v for k, v in req.input.model_dump().items() if v is not None and k in ("candidate_ref",)}
     meta["username"] = current_user.username
+    meta["role"] = current_user.role
     mon.start_run(tid, "pipeline", meta=meta)
 
     if req.resume is not None:

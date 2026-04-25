@@ -7,3 +7,8 @@ MONGODB_DB = os.getenv("MONGODB_DB", "hiring_agent")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 HTTP_USER_AGENT_CONTACT = os.getenv("HTTP_USER_AGENT_CONTACT", "admin@example.com")
 UPLOADS_DIR = os.getenv("UPLOADS_DIR", "uploads")
+
+# Safety / Guardrails
+GUARDRAIL_ENABLED = os.getenv("GUARDRAIL_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+GUARDRAIL_MODE = os.getenv("GUARDRAIL_MODE", "enforce").lower()  # off | shadow | enforce
+GUARDRAIL_CLASSIFIER_MODEL = os.getenv("GUARDRAIL_CLASSIFIER_MODEL", "gpt-4o-mini")

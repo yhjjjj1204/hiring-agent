@@ -78,7 +78,7 @@ async def _background_evaluate_resume(
             return
 
         # SET CONTEXT FOR AUTOMATIC TOKEN TRACKING
-        set_execution_context(username=username, function_id="background_eval")
+        set_execution_context(username=username, function_id="background_eval", user_role="candidate")
 
         job_spec = _resolve_job_spec(hr_requirement_text, job_spec_json)
 

@@ -26,7 +26,9 @@ from fairness.blind_screening import (
 from fairness.injection_sanitize import sanitize_resume_text
 from monitoring.pipeline_hooks import monitored_node
 from agents.ocr_agent import extract_and_arrange_resume_from_path
+from monitoring.context import current_user_role, current_username
 from monitoring.token_callback import get_token_callback
+from safety.guardrails import moderate_text
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,7 @@ class HiringPipelineState(TypedDict, total=False):
     pipeline_status: str
     last_error: str | None
     fairness_injection_meta: dict[str, Any] | None
+    safety_meta: dict[str, Any] | None
 
 
 def extract_hr_job_spec_from_text(hr_requirement_text: str) -> dict[str, Any]:
@@ -170,11 +173,25 @@ def node_hr_ingest(state: HiringPipelineState) -> dict[str, Any]:
             "pipeline_status": "failed",
         }
 
+    hr_dec = moderate_text(
+        text,
+        stage="pipeline.hr_ingest.input",
+        role=current_user_role.get(),
+        username=current_username.get(),
+    )
+    if hr_dec.blocked:
+        return {
+            "last_error": "safety_blocked_hr_requirement",
+            "pipeline_status": "failed",
+            "safety_meta": _merge_safety_meta(state, "hr_ingest_input", hr_dec.as_meta()),
+        }
+
     spec = _llm_extract_hr_job_spec(text)
     return {
         "job_spec": spec.model_dump(mode="json"),
         "hr_requirement_text": text,
         "pipeline_status": "running",
+        "safety_meta": _merge_safety_meta(state, "hr_ingest_input", hr_dec.as_meta()),
     }
 
 
@@ -188,28 +205,64 @@ def _merge_fairness_meta(
     return prev
 
 
+def _merge_safety_meta(
+    state: HiringPipelineState,
+    key: str,
+    meta: dict[str, Any],
+) -> dict[str, Any]:
+    prev = dict(state.get("safety_meta") or {})
+    prev[key] = meta
+    return prev
+
+
 def node_resume_ocr(state: HiringPipelineState) -> dict[str, Any]:
     if state.get("ocr_text") and state.get("arranged_resume"):
         return {}
 
     if state.get("resume_ocr_text"):
         raw = state["resume_ocr_text"].strip()
+        dec = moderate_text(
+            raw,
+            stage="pipeline.resume_ocr.input",
+            role=current_user_role.get(),
+            username=current_username.get(),
+        )
+        if dec.blocked:
+            return {
+                "last_error": "safety_blocked_resume_input",
+                "pipeline_status": "failed",
+                "safety_meta": _merge_safety_meta(state, "resume_ocr_input", dec.as_meta()),
+            }
         safe, meta = sanitize_resume_text(raw)
         return {
             "ocr_text": safe,
             "fairness_injection_meta": _merge_fairness_meta(state, "resume_ocr_input", meta),
+            "safety_meta": _merge_safety_meta(state, "resume_ocr_input", dec.as_meta()),
         }
 
     path = state.get("resume_path")
     if path and Path(path).is_file():
         try:
             parsed = extract_and_arrange_resume_from_path(path)
+            dec = moderate_text(
+                parsed.ocr_text,
+                stage="pipeline.resume_ocr.file",
+                role=current_user_role.get(),
+                username=current_username.get(),
+            )
+            if dec.blocked:
+                return {
+                    "last_error": "safety_blocked_resume_file",
+                    "pipeline_status": "failed",
+                    "safety_meta": _merge_safety_meta(state, "resume_ocr_file", dec.as_meta()),
+                }
             safe, meta = sanitize_resume_text(parsed.ocr_text)
             return {
                 "ocr_text": safe,
                 "arranged_resume": parsed.arranged_profile.model_dump(mode="json"),
                 "arrange_ocr_was_truncated": False,
                 "fairness_injection_meta": _merge_fairness_meta(state, "resume_ocr_file", meta),
+                "safety_meta": _merge_safety_meta(state, "resume_ocr_file", dec.as_meta()),
             }
         except Exception as e:
             logger.warning("Resume OCR failed: %s", e)
@@ -223,13 +276,38 @@ def node_resume_ocr(state: HiringPipelineState) -> dict[str, Any]:
             )
             if isinstance(fb, dict) and isinstance(fb.get("resume_ocr_text"), str):
                 raw_fb = fb["resume_ocr_text"].strip()
+                dec_fb = moderate_text(
+                    raw_fb,
+                    stage="pipeline.resume_ocr.hitl",
+                    role=current_user_role.get(),
+                    username=current_username.get(),
+                )
+                if dec_fb.blocked:
+                    return {
+                        "last_error": "safety_blocked_resume_hitl",
+                        "pipeline_status": "failed",
+                        "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl", dec_fb.as_meta()),
+                    }
                 sfb, mfb = sanitize_resume_text(raw_fb)
                 return {
                     "ocr_text": sfb,
                     "fairness_injection_meta": _merge_fairness_meta(state, "resume_ocr_hitl", mfb),
+                    "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl", dec_fb.as_meta()),
                 }
             if isinstance(fb, dict) and isinstance(fb.get("resume_path"), str) and Path(fb["resume_path"]).is_file():
                 parsed = extract_and_arrange_resume_from_path(fb["resume_path"])
+                dec_fb_file = moderate_text(
+                    parsed.ocr_text,
+                    stage="pipeline.resume_ocr.hitl_file",
+                    role=current_user_role.get(),
+                    username=current_username.get(),
+                )
+                if dec_fb_file.blocked:
+                    return {
+                        "last_error": "safety_blocked_resume_hitl_file",
+                        "pipeline_status": "failed",
+                        "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl_file", dec_fb_file.as_meta()),
+                    }
                 safe, meta = sanitize_resume_text(parsed.ocr_text)
                 return {
                     "ocr_text": safe,
@@ -237,6 +315,7 @@ def node_resume_ocr(state: HiringPipelineState) -> dict[str, Any]:
                     "arrange_ocr_was_truncated": False,
                     "resume_path": fb["resume_path"],
                     "fairness_injection_meta": _merge_fairness_meta(state, "resume_ocr_hitl_file", meta),
+                    "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl_file", dec_fb_file.as_meta()),
                 }
             return {"last_error": "ocr_unresolved", "pipeline_status": "failed"}
 
@@ -250,13 +329,38 @@ def node_resume_ocr(state: HiringPipelineState) -> dict[str, Any]:
     )
     if isinstance(fb, dict) and isinstance(fb.get("resume_ocr_text"), str):
         raw_fb = fb["resume_ocr_text"].strip()
+        dec_initial = moderate_text(
+            raw_fb,
+            stage="pipeline.resume_ocr.hitl_initial",
+            role=current_user_role.get(),
+            username=current_username.get(),
+        )
+        if dec_initial.blocked:
+            return {
+                "last_error": "safety_blocked_resume_hitl_initial",
+                "pipeline_status": "failed",
+                "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl_initial", dec_initial.as_meta()),
+            }
         sfb, mfb = sanitize_resume_text(raw_fb)
         return {
             "ocr_text": sfb,
             "fairness_injection_meta": _merge_fairness_meta(state, "resume_ocr_hitl_initial", mfb),
+            "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl_initial", dec_initial.as_meta()),
         }
     if isinstance(fb, dict) and isinstance(fb.get("resume_path"), str) and Path(fb["resume_path"]).is_file():
         parsed = extract_and_arrange_resume_from_path(fb["resume_path"])
+        dec_initial_file = moderate_text(
+            parsed.ocr_text,
+            stage="pipeline.resume_ocr.hitl_initial_file",
+            role=current_user_role.get(),
+            username=current_username.get(),
+        )
+        if dec_initial_file.blocked:
+            return {
+                "last_error": "safety_blocked_resume_hitl_initial_file",
+                "pipeline_status": "failed",
+                "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl_initial_file", dec_initial_file.as_meta()),
+            }
         safe, meta = sanitize_resume_text(parsed.ocr_text)
         return {
             "ocr_text": safe,
@@ -264,6 +368,7 @@ def node_resume_ocr(state: HiringPipelineState) -> dict[str, Any]:
             "arrange_ocr_was_truncated": False,
             "resume_path": fb["resume_path"],
             "fairness_injection_meta": _merge_fairness_meta(state, "resume_ocr_hitl_initial_file", meta),
+            "safety_meta": _merge_safety_meta(state, "resume_ocr_hitl_initial_file", dec_initial_file.as_meta()),
         }
     return {"last_error": "missing_resume_input", "pipeline_status": "failed"}
 
@@ -364,6 +469,19 @@ def node_auto_score(state: HiringPipelineState) -> dict[str, Any]:
     )
 
     sc = score_match(job, arr, bg)
+    summary_text = "\n".join([sc.summary or "", sc.hitl_reason or ""]).strip()
+    summary_dec = moderate_text(
+        summary_text,
+        stage="pipeline.auto_score.output",
+        role=current_user_role.get(),
+        username=current_username.get(),
+    )
+    if summary_dec.blocked:
+        return {
+            "last_error": "safety_blocked_score_output",
+            "pipeline_status": "failed",
+            "safety_meta": _merge_safety_meta(state, "auto_score_output", summary_dec.as_meta()),
+        }
     low = sc.overall_confidence < _CONFIDENCE_HITL_THRESHOLD or sc.hitl_suggested
     if low:
         fb = interrupt(
@@ -381,9 +499,17 @@ def node_auto_score(state: HiringPipelineState) -> dict[str, Any]:
         )
         if isinstance(fb, dict) and fb.get("action") == "accept_draft" and isinstance(fb.get("draft_scorecard"), dict):
             card = Scorecard.model_validate(fb["draft_scorecard"])
-            return {"scorecard": card.model_dump(mode="json"), "pipeline_status": "completed"}
+            return {
+                "scorecard": card.model_dump(mode="json"),
+                "pipeline_status": "completed",
+                "safety_meta": _merge_safety_meta(state, "auto_score_output", summary_dec.as_meta()),
+            }
 
-    return {"scorecard": sc.model_dump(mode="json"), "pipeline_status": "completed"}
+    return {
+        "scorecard": sc.model_dump(mode="json"),
+        "pipeline_status": "completed",
+        "safety_meta": _merge_safety_meta(state, "auto_score_output", summary_dec.as_meta()),
+    }
 
 
 _checkpointer = InMemorySaver()

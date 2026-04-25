@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from monitoring.usage_service import record_usage
+from monitoring.usage_service import record_usage_with_context
 
 StepStatus = Literal["running", "completed", "failed", "interrupted"]
 
@@ -122,9 +122,14 @@ class AgentMonitorRegistry:
             run.current_agent_id = None
 
             # PERSIST TO DATABASE
-            username = run.meta.get("username")
-            if username and (input_tokens > 0 or output_tokens > 0):
-                record_usage(username, agent_id, input_tokens, output_tokens)
+            record_usage_with_context(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                username=run.meta.get("username"),
+                function_id=agent_id,
+                user_role=run.meta.get("role"),
+                default_function_id=agent_id,
+            )
 
     def finish_run(
         self,

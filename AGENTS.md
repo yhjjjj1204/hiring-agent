@@ -62,6 +62,11 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 - **Privacy Hardening**: Tools for sensitive operations (e.g., `create_job`) are only bound to the LLM when the user has the `recruiter` role. Candidates never see these capabilities exist.
 - **ID Secrecy**: Technical UUIDs are provided to the LLM via the hidden context. The LLM is instructed to use these for data retrieval but never print them in natural language, using human-friendly names instead.
 
+### 5. Role-Aware Guardrails (`src/safety/guardrails.py`)
+- **Role Gating**: Safety checks are currently enforced for `candidate` traffic and bypassed for `recruiter` traffic by design.
+- **Mechanism**: Unified LLM safety classifier (`gpt-4o-mini`) for harmful content and prompt injection checks, with configurable mode (`off` | `shadow` | `enforce`) and centralized metadata emission.
+- **Coverage**: Applied to both pipeline and assistant chat for input/output checks, with stage-level diagnostics in state/log metadata.
+
 ### 4. Interactive Entity Cards
 - **Injection Format**: The assistant uses a specialized `[[TYPE:ID]]` marker to inject rich UI components (Cards) into its chat bubbles.
 - **Persistence & Navigation**: Cards are interactive. Clicking a Job or Candidate card triggers a global state change, navigating the user to the relevant page while keeping the chat session persistent.
@@ -82,6 +87,10 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 ### Fairness & Privacy (`src/fairness/`)
 - **Blind Screening**: Automatically redacts PII (Names, Emails, Photos, Genders) from profiles before they reach the Scoring Agent to minimize unconscious bias.
 - **Injection Sanitization**: Protects the pipeline from prompt injection attacks hidden within resume text.
+
+### Safety Runtime (`src/safety/`)
+- **LLM Safety Classification Layer**: Provides candidate-scoped harmful content and prompt injection checks for high-risk user input and generated output.
+- **Operational Mode**: Supports `off` / `shadow` / `enforce` to control blocking strictness without changing call sites.
 
 ### Monitoring & Observability (`src/monitoring/`)
 - **Agent Registry**: Tracks the execution status (`running`, `completed`, `failed`) and the path taken by candidates through the multi-agent pipeline.

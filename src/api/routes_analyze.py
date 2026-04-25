@@ -88,6 +88,31 @@ async def _background_evaluate_resume(
             print(f"Resume parsing failed for {ranking_id}: {e}")
             return
 
+        # Safety check on extracted text
+        from safety.guardrails import moderate_text
+        dec = moderate_text(
+            extracted.ocr_text,
+            stage="pipeline.resume_ocr.background_eval",
+            role="candidate",
+            username=username
+        )
+        if dec.blocked:
+            from dashboard.repository import update_candidate_ranking_status
+            update_candidate_ranking_status(ranking_id, "safety_blocked")
+            from db.mongo import get_database
+            get_database().candidate_rankings.update_one(
+                {"ranking_id": ranking_id},
+                {"$set": {"safety_meta": dec.as_meta()}}
+            )
+            from api.websockets import manager
+            await manager.send_to_user(username, {
+                "type": "submission_update",
+                "status": "safety_blocked",
+                "ranking_id": ranking_id,
+                "reason": dec.reason
+            })
+            return
+
         safe_ocr, _ = sanitize_resume_text(extracted.ocr_text)
         arranged = extracted.arranged_profile.model_dump(mode="json")
 

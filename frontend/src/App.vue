@@ -251,6 +251,10 @@ onMounted(() => {
         status.value = "Update complete! Here is your objective resume summary."
         isWorking.value = false
         showReSubmitForm.value = false
+      } else if (message.status === 'safety_blocked') {
+        status.value = "Application blocked: " + (message.reason || "Safety Violation")
+        statusClass.value = "err"
+        isWorking.value = false
       } else if (message.status === 'error') {
         status.value = "Analysis failed. Please try again."
         isWorking.value = false

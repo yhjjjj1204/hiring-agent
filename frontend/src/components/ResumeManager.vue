@@ -39,6 +39,10 @@ onMounted(() => {
         isWorking.value = false
         statusMsg.value = "Resume analyzed successfully"
         statusClass.value = "ok"
+      } else if (message.status === 'safety_blocked') {
+        isWorking.value = false
+        statusMsg.value = "Analysis blocked: " + (message.reason || "Safety Violation")
+        statusClass.value = "err"
       } else if (message.status === 'error') {
         isWorking.value = false
         statusMsg.value = "Analysis failed"

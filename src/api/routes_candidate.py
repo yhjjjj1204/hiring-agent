@@ -91,8 +91,34 @@ async def update_candidate_resume(
 
     async def _analyze_profile_resume():
         from api.websockets import manager
+        from safety.guardrails import moderate_text
+        from monitoring.context import set_execution_context
+        set_execution_context(username=current_user.username, user_role="candidate", function_id="profile_resume_analysis")
         try:
             extracted = await run_in_threadpool(extract_and_arrange_resume_from_path, str(dest_path))
+            
+            # Safety check on extracted text
+            dec = moderate_text(
+                extracted.ocr_text,
+                stage="candidate.profile.resume_ocr",
+                role="candidate",
+                username=current_user.username
+            )
+            if dec.blocked:
+                db.users.update_one(
+                    {"username": current_user.username},
+                    {"$set": {
+                        "resume_status": "safety_blocked",
+                        "safety_meta": dec.as_meta()
+                    }}
+                )
+                await manager.send_to_user(current_user.username, {
+                    "type": "profile_update",
+                    "status": "safety_blocked",
+                    "reason": dec.reason
+                })
+                return
+
             arranged = extracted.arranged_profile.model_dump(mode="json")
             db.users.update_one(
                 {"username": current_user.username},

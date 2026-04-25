@@ -35,7 +35,7 @@ class Job(BaseModel):
     created_at: datetime
     submitted: bool = False
 
-@router.post("/", response_model=Job)
+@router.post("", response_model=Job)
 def create_job(
     job_in: JobCreate,
     background_tasks: BackgroundTasks,
@@ -43,7 +43,7 @@ def create_job(
 ):
     return create_job_svc(job_in.title, job_in.description, current_user, background_tasks)
 
-@router.get("/", response_model=List[Job])
+@router.get("", response_model=List[Job])
 def list_jobs(current_user: Optional[User] = Depends(get_current_user_optional)):
     return list_jobs_svc(current_user)
 

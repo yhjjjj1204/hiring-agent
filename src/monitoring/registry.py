@@ -74,6 +74,12 @@ class AgentMonitorRegistry:
                 self._runs[thread_id].updated_at = _utcnow()
                 return
             rec = RunRecord(thread_id=thread_id, context=context, meta=meta or {})
+            
+            # Prune _runs if we are at capacity
+            if len(self._order) >= self._order.maxlen:
+                oldest = self._order[0]
+                self._runs.pop(oldest, None)
+                
             self._runs[thread_id] = rec
             self._order.append(thread_id)
 

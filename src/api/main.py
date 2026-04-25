@@ -23,6 +23,13 @@ from api.routes_auth import router as auth_router
 from api.routes_candidate import router as candidate_router
 from api.routes_recruiter import router as recruiter_router
 from api.routes_data import router as data_router
+from api.routes_analyze import router as analyze_router
+from api.routes_background import router as background_router
+from api.routes_dashboard import router as dashboard_router
+from api.routes_hr_strategy import router as hr_strategy_router
+from api.routes_monitor import router as monitor_router
+from api.routes_pipeline import router as pipeline_router
+from api.routes_jobs import router as jobs_router
 from api.routes_chat import run_chat_logic
 from api.websockets import manager
 from api.auth_repository import get_user as get_user_from_db
@@ -130,6 +137,13 @@ api_router.include_router(auth_router)
 api_router.include_router(candidate_router)
 api_router.include_router(recruiter_router)
 api_router.include_router(data_router)
+api_router.include_router(analyze_router)
+api_router.include_router(background_router)
+api_router.include_router(dashboard_router)
+api_router.include_router(hr_strategy_router)
+api_router.include_router(monitor_router)
+api_router.include_router(pipeline_router)
+api_router.include_router(jobs_router)
 
 app.include_router(api_router)
 

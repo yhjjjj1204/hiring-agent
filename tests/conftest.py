@@ -24,18 +24,16 @@ def mock_get_database(monkeypatch):
     mock_client = MagicMock()
     mock_client.__getitem__.return_value = mock_db
     
-    # Patch get_mongo_client and get_database in db.mongo
-    monkeypatch.setattr("db.mongo.get_mongo_client", lambda: mock_client)
-    monkeypatch.setattr("db.mongo.get_database", lambda: mock_db)
-    
-    # Patch everywhere else it might have been imported
     def get_db_side_effect():
         return mock_db
         
+    monkeypatch.setattr("db.mongo.get_mongo_client", lambda: mock_client)
+    monkeypatch.setattr("db.mongo.get_database", get_db_side_effect)
+    
     for module_name in [
-        "services.jobs", "services.rankings", "services.evaluations",
+        "db.mongo", "services.jobs", "services.rankings", "services.evaluations",
         "monitoring.usage_service", "dashboard.repository", "api.auth_repository",
-        "api.routes_auth", "api.routes_candidate", "api.routes_recruiter",
+        "api.routes_auth", "api.routes_candidate", "api.routes_recruiter", "api.routes_chat",
         "agents.data_arrangement.repository", "agents.hr_strategy.repository",
         "agents.background_analysis.repository"
     ]:
@@ -107,7 +105,8 @@ def mock_chat_openai(monkeypatch):
         "agents.scoring.agent.ChatOpenAI",
         "agents.hr_strategy.graph.ChatOpenAI",
         "graph.pipeline.ChatOpenAI",
-        "services.jobs.ChatOpenAI"
+        "services.jobs.ChatOpenAI",
+        "api.routes_chat.ChatOpenAI"
     ]:
         try:
             monkeypatch.setattr(path, lambda **kwargs: mock_instance)

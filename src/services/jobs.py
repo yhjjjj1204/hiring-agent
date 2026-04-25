@@ -187,7 +187,7 @@ def update_job(job_id: str, title: Optional[str], description: Optional[str], cu
             except Exception as e:
                 print(f"Failed to re-generate description embedding for {job_id}: {e}")
 
-            if len(new_desc) >= 300:
+            if new_desc and len(new_desc) >= 300:
                 update_data["summary"] = "generating"
                 if background_tasks:
                     background_tasks.add_task(

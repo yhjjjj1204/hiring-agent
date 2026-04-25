@@ -118,10 +118,10 @@ async def _background_evaluate_resume(
 
         arr = arranged
         name = (arr.get("candidate_name") or "").strip() or (candidate_name_override or "").strip() or None
-        bg = run_background_analysis(name, candidate_github, google_scholar_url)
+        bg = await run_in_threadpool(run_background_analysis, name, candidate_github, google_scholar_url)
         bg_dict = bg.model_dump(mode="json")
 
-        sc = score_match(job_spec, arranged, bg_dict, personal_statement)
+        sc = await run_in_threadpool(score_match, job_spec, arranged, bg_dict, personal_statement)
         sc_dict = sc.model_dump(mode="json")
 
         # Prepare dimensions

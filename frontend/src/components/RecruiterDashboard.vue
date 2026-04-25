@@ -20,6 +20,7 @@ import {
 } from 'lucide-vue-next'
 import JobManager from './JobManager.vue'
 import CandidateSnapshot from './CandidateSnapshot.vue'
+import AnalysisResult from './AnalysisResult.vue'
 
 const props = defineProps(['modelValue']) // Kept for compatibility if needed
 const emit = defineEmits(['context-change'])
@@ -391,16 +392,8 @@ defineExpose({ reset, onSelectJob, selectCandidate })
           <div class="pane-header"><h3>Match Evaluation</h3></div>
           <div class="pane-content">
             <div v-if="selectedCandidate.status === 'ready'">
-              <div class="overall-result">
-                <div class="big-score">{{ selectedCandidate.overall_score.toFixed(0) }}<small>%</small></div>
-                <div class="analysis-summary">{{ selectedCandidate.summary }}</div>
-              </div>
-              <div class="details-list">
-                <div v-for="d in selectedCandidate.dimensions" :key="d.name" class="detail-item glass-card">
-                  <div class="detail-header"><strong>{{ d.name }}</strong><span class="detail-score">{{ d.score }}</span></div>
-                  <div class="detail-rationale">{{ d.rationale }}</div>
-                </div>
-              </div>
+              <!-- Use the dedicated component for results -->
+              <AnalysisResult :data="{ scorecard: selectedCandidate.scorecard_snapshot }" />
             </div>
             <div v-else class="evaluating-placeholder"><RefreshCw class="loader spin" :size="48" /><p>Evaluating...</p></div>
           </div>
@@ -482,16 +475,6 @@ defineExpose({ reset, onSelectJob, selectCandidate })
 .dual-pane { display: grid; grid-template-columns: 1.6fr 1fr; gap: 1.5rem; }
 .pane-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); }
 .pane-content { padding: 1.5rem; }
-
-.overall-result { text-align: center; background: var(--bg); padding: 1.5rem; border-radius: 4px; margin-bottom: 2rem; border: 1px solid var(--border); }
-.big-score { font-size: 3.5rem; font-weight: 700; color: var(--ok); line-height: 1; }
-.big-score small { font-size: 1.2rem; margin-left: 2px; }
-.analysis-summary { font-size: 1rem; line-height: 1.6; font-style: italic; margin-top: 1rem; opacity: 0.9; }
-
-.detail-item { padding: 1.25rem; margin-bottom: 1rem; }
-.detail-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-.detail-score { color: var(--ok); font-weight: 800; }
-.detail-rationale { font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
 
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; }
 .count-badge { background: var(--accent); color: white; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem; }

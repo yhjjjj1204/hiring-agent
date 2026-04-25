@@ -55,7 +55,7 @@ class ConnectionManager:
     async def send_to_user(self, user_id: str, message: Any):
         """Send a message to all active sessions of a specific user."""
         if user_id in self.user_sessions:
-            data = json.dumps(message)
+            data = json.dumps(message, default=str)
             for connection in self.user_sessions[user_id]:
                 try:
                     await connection.send_text(data)
@@ -65,7 +65,7 @@ class ConnectionManager:
     async def broadcast_to_topic(self, topic: str, message: Any):
         """Send a message to all WebSockets subscribed to a specific topic."""
         if topic in self.topics:
-            data = json.dumps(message)
+            data = json.dumps(message, default=str)
             for connection in self.topics[topic]:
                 try:
                     await connection.send_text(data)

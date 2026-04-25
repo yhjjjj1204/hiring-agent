@@ -21,8 +21,8 @@ This project implements an AI-driven hiring pipeline designed to streamline cand
 
 ### 4. Scoring Agent (`src/agents/scoring`)
 - **Role**: Automated Matching & Evaluation.
-- **Mechanism**: Structured LLM evaluation.
-- **Function**: Performs a "Blind Match" by comparing the `HRJobSpec`, structured resume, and background analysis. It outputs a `Scorecard` with detailed scores and rationales.
+- **Mechanism**: Multi-agent "Competing Experts" panel (Advocate, Critic, and Logic Auditors).
+- **Function**: Performs a multi-perspective evaluation by pitting an Advocate (finding potential) against a Critic (finding risks), each audited by a Logic Auditor for factual accuracy. A final Judge Agent synthesizes all analyses into a balanced `Scorecard`.
 
 ### 5. Async Evaluation Pipeline (`src/api/routes_analyze.py`)
 - **Role**: Non-blocking candidate experience.

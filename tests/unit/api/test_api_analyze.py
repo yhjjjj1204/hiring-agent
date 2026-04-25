@@ -43,12 +43,18 @@ async def test_background_evaluate_resume_success(mock_get_database, mock_chat_o
     monkeypatch.setattr("safety.guardrails.moderate_text", lambda *args, **kwargs: mock_moderate)
     
     # Mock background analysis
-    monkeypatch.setattr("api.routes_analyze.run_background_analysis", lambda *args: MagicMock())
+    mock_bg = MagicMock()
+    mock_bg.model_dump.return_value = {}
+    monkeypatch.setattr("api.routes_analyze.run_background_analysis", mock_bg)
     
     # Mock scoring
     mock_scorecard = MagicMock()
-    mock_scorecard.model_dump.return_value = {"score": 90}
-    monkeypatch.setattr("api.routes_analyze.score_match", lambda *args: mock_scorecard)
+    mock_scorecard.model_dump.return_value = {
+        "overall_score": 90,
+        "summary": "Good",
+        "dimensions": [{"name": "Skill", "score": 90, "rationale": "ok"}]
+    }
+    monkeypatch.setattr("api.routes_analyze.score_match", MagicMock(return_value=mock_scorecard))
     
     # Mock repository
     mock_update = MagicMock()
@@ -68,3 +74,8 @@ async def test_background_evaluate_resume_success(mock_get_database, mock_chat_o
     )
     
     assert mock_update.called
+    # Ensure dimensions were passed correctly
+    call_args = mock_update.call_args[1]
+    assert call_args["overall_score"] == 90
+    assert len(call_args["dimensions"]) == 1
+    assert call_args["dimensions"][0]["name"] == "Skill"

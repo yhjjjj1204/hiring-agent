@@ -58,6 +58,12 @@ def insert_candidate_ranking(
     )
 
 
+def _json_serializable(obj: Any) -> Any:
+    """Helper to ensure an object is JSON serializable (converts datetime to string)."""
+    import json
+    return json.loads(json.dumps(obj, default=str))
+
+
 def update_candidate_ranking_result(
     ranking_id: str,
     *,
@@ -78,12 +84,13 @@ def update_candidate_ranking_result(
                 "overall_score": overall_score,
                 "dimensions": dimensions,
                 "summary": summary,
-                "scorecard_snapshot": scorecard,
-                "arranged_resume": arranged_resume,
+                "scorecard_snapshot": _json_serializable(scorecard),
+                "arranged_resume": _json_serializable(arranged_resume) if arranged_resume else None,
                 "evaluated_at": _utcnow(),
             }
         },
     )
+
 
 
 def list_rankings(

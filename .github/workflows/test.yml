@@ -1,0 +1,32 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v26
+
+      - name: Start Database
+        run: |
+          # --wait ensures docker-compose waits for healthchecks to pass
+          docker-compose up -d --wait ferretdb
+          echo "FerretDB is healthy"
+
+      - name: Run Pytest
+        run: |
+          nix develop --command pytest --cov=src --cov-report=xml
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down

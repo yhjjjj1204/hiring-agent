@@ -32,6 +32,11 @@ services:
     networks:
       - hiring-network
       - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/27017"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   postgres:
     image: ghcr.io/ferretdb/postgres-documentdb:17-0.107.0-ferretdb-2.7.0

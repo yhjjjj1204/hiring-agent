@@ -100,6 +100,20 @@ def _line_count(text: str) -> int:
     return text.count("\n") + 1
 
 
+def _fail_closed(stage: str, role: str | None, reason: str) -> GuardrailDecision:
+    return GuardrailDecision(
+        blocked=(config.GUARDRAIL_MODE == "enforce"),
+        stage=stage,
+        mode=config.GUARDRAIL_MODE,
+        role=role,
+        reason=reason,
+        flagged=True,
+        categories=["system_error"],
+        scores={},
+        details={"checked": True, "error": True},
+    )
+
+
 def moderate_text(
     text: str,
     *,
@@ -195,7 +209,7 @@ def moderate_text(
         payload = _safe_json_payload(content)
         if payload is None:
             logger.warning("Guardrail classifier returned non-JSON payload")
-            return _bypass(stage, role, "classifier_invalid_json")
+            return _fail_closed(stage, role, "classifier_invalid_json")
 
         flagged = bool(payload.get("flagged", False))
         categories = _coerce_categories(payload.get("categories"))
@@ -217,7 +231,7 @@ def moderate_text(
                 "classifier": "gpt-4o-mini-safety-check",
             },
         )
-    except Exception as e:  # pragma: no cover - fail-open for availability
+    except Exception as e:
         logger.exception("Guardrail classifier failed at %s: %s", stage, e)
-        return _bypass(stage, role, "classifier_error")
+        return _fail_closed(stage, role, "classifier_error")
 

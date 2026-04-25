@@ -115,8 +115,20 @@ def score_match(
 
     judge_input = {
         "candidate_data": payload,
-        "advocate_points": [p.model_dump() for p in adv_points],
-        "critic_points": [p.model_dump() for p in cri_points]
+        "advocate_points": [
+            {
+                "title": p.title, 
+                "description": p.description, 
+                "auditor_challenge": p.refutation
+            } for p in adv_points
+        ],
+        "critic_points": [
+            {
+                "title": p.title, 
+                "description": p.description, 
+                "auditor_challenge": p.refutation
+            } for p in cri_points
+        ]
     }
 
     out = llm_judge.invoke([

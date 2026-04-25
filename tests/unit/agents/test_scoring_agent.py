@@ -26,7 +26,7 @@ def test_score_match(mock_chat_openai, monkeypatch):
     mock_scorecard = Scorecard(
         overall_score=85,
         overall_confidence=0.9,
-        summary="Strong candidate",
+        summary="Judgment first, then score summary.",
         dimensions=[],
         competing_analysis=CompetingAnalysis(
             advocate_points=[
@@ -59,7 +59,7 @@ def test_score_match(mock_chat_openai, monkeypatch):
     
     # Assert
     assert result.overall_score == 85
-    assert result.summary == "Strong candidate"
+    assert result.summary == "Judgment first, then score summary."
     assert result.competing_analysis is not None
     assert len(result.competing_analysis.advocate_points) == 1
     assert result.competing_analysis.advocate_points[0].refutation == "Actually not that good"
@@ -73,7 +73,9 @@ def test_score_match_datetime_serialization(mock_chat_openai, monkeypatch):
     mock_invoke = MagicMock()
     # If points are empty, auditors are NOT called.
     # Total calls: 1. Advocate (empty), 2. Critic (empty), 3. Judge
-    mock_scorecard = Scorecard(overall_score=80, overall_confidence=1.0, summary="ok", dimensions=[])
+    mock_scorecard = Scorecard(
+        overall_score=80, overall_confidence=1.0, summary="ok", dimensions=[]
+    )
     mock_invoke.invoke.side_effect = [
         AnalysisPoints(points=[]),
         AnalysisPoints(points=[]),

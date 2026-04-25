@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 import config
 from agents.scoring.models import Scorecard, CompetingAnalysis, AnalysisPoint
 from agents.scoring.prompts import (
-    SCORING_SYSTEM,
     ADVOCATE_AGENT_PROMPT,
     CRITIC_AGENT_PROMPT,
     ADVOCATE_AUDITOR_PROMPT,
@@ -121,7 +120,7 @@ def score_match(
     }
 
     out = llm_judge.invoke([
-        SystemMessage(content=SCORING_SYSTEM + "\n\n" + JUDGE_AGENT_PROMPT),
+        SystemMessage(content=JUDGE_AGENT_PROMPT),
         HumanMessage(content=f"Review all evidence and provide the final Scorecard:\n\n{json.dumps(judge_input, indent=2, default=str)}")
     ])
 

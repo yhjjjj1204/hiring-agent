@@ -19,7 +19,11 @@ import {
   BarChart3,
   Search,
   Delete,
-  MapPin
+  MapPin,
+  HelpCircle,
+  ChevronRight,
+  X,
+  Printer
 } from 'lucide-vue-next'
 import JobRequirementInput from './components/JobRequirementInput.vue'
 import AnalysisResult from './components/AnalysisResult.vue'
@@ -278,6 +282,37 @@ function renderMarkdown(text) {
 
 const currentContext = ref({})
 
+// Guide Navigation State
+const currentGuideSlide = ref(0)
+const totalGuideSlides = ref(13)
+const isPrintingGuide = ref(false)
+
+function nextGuideSlide() {
+  if (currentGuideSlide.value < totalGuideSlides.value - 1) {
+    currentGuideSlide.value++
+  }
+}
+
+function prevGuideSlide() {
+  if (currentGuideSlide.value > 0) {
+    currentGuideSlide.value--
+  }
+}
+
+function exitGuide() {
+  currentGuideSlide.value = 0
+  router.push('/')
+}
+
+async function printGuideToPDF() {
+  isPrintingGuide.value = true
+  // Give time for DOM to render all pages
+  setTimeout(() => {
+    window.print()
+    isPrintingGuide.value = false
+  }, 500)
+}
+
 watch([user, selectedJob, existingSubmission], () => {
   const ctx = {}
   if (user.value) ctx.role = user.value.role
@@ -323,6 +358,12 @@ async function syncStateWithRoute() {
     personalStatement.value = ''
   }
 }
+
+watch(() => route.path, (newPath, oldPath) => {
+  if (newPath === '/guide' && oldPath !== '/guide') {
+    currentGuideSlide.value = 0
+  }
+})
 
 // Watch both user and route params for robust deep-linking
 watch([user, () => route.params], syncStateWithRoute, { immediate: true, deep: true })
@@ -401,6 +442,27 @@ async function handleNavigateFromChat(payload) {
 
         <div class="header-right">
           <div class="header-actions">
+            <template v-if="route.name === 'Guide'">
+              <div class="guide-nav-group">
+                <button class="mini secondary" @click="prevGuideSlide" :disabled="currentGuideSlide === 0" title="Previous Slide">
+                  <ChevronLeft :size="14" />
+                </button>
+                <span class="guide-counter">{{ currentGuideSlide + 1 }} / {{ totalGuideSlides }}</span>
+                <button class="mini secondary" @click="nextGuideSlide" :disabled="currentGuideSlide === totalGuideSlides - 1" title="Next Slide">
+                  <ChevronRight :size="14" />
+                </button>
+                <div class="header-divider"></div>
+                <button class="mini secondary" @click="printGuideToPDF" title="Export to PDF">
+                  <Printer :size="14" /> PDF
+                </button>
+                <button class="mini secondary danger" @click="exitGuide" title="Exit Guide">
+                  <X :size="14" /> Exit
+                </button>
+              </div>
+            </template>
+            <router-link v-else-if="!user" to="/guide" class="resume-nav-btn" title="How it works">
+              <HelpCircle :size="14" /> Guide
+            </router-link>
             <button class="mini secondary theme-toggle" @click="toggleTheme" title="Toggle Theme">
               <Moon v-if="theme === 'dark'" :size="14" />
               <Sun v-else :size="14" />
@@ -427,18 +489,26 @@ async function handleNavigateFromChat(payload) {
       </div>
     </header>
 
-    <main class="main-container">
-      <div v-if="!user">
+    <main :class="['main-container', { 'full-window': route.name === 'Guide' }]">
+      <div v-if="!user && route.name !== 'Guide'">
         <Auth @authenticated="onAuthenticated" />
       </div>
 
-      <router-view v-else-if="route.name === 'NotFound' || route.name === 'UsageStats'" />
+      <router-view v-else-if="['NotFound', 'UsageStats', 'Guide'].includes(route.name)" v-slot="{ Component }">
+        <component 
+          :is="Component" 
+          :user="user" 
+          :current-slide="currentGuideSlide" 
+          :is-printing="isPrintingGuide"
+          @context-change="onRecruiterContextChange"
+        />
+      </router-view>
 
       <div v-else-if="route.name === 'ResumeManager'" class="resume-manager-view">
         <ResumeManager :user="user" />
       </div>
 
-      <div v-else-if="user.role === 'candidate'" class="candidate-view">
+      <div v-else-if="user && user.role === 'candidate'" class="candidate-view">
         <div v-if="!selectedJob">
           <JobList @select-job="selectJob" />
         </div>
@@ -536,7 +606,7 @@ async function handleNavigateFromChat(payload) {
         </div>
       </div>
 
-      <div v-else-if="user.role === 'recruiter'">
+      <div v-else-if="user && user.role === 'recruiter'" class="recruiter-view">
         <RecruiterDashboard 
           ref="recruiterDashboardRef" 
           @context-change="onRecruiterContextChange" 
@@ -554,6 +624,44 @@ async function handleNavigateFromChat(payload) {
 </template>
 
 <style scoped>
+@media print {
+  .main-header, .chatbot-container, .star-background {
+    display: none !important;
+  }
+  .main-container.full-window {
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+
+.main-container.full-window {
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  height: calc(100vh - 64px); /* Adjust based on header height */
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--glass);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.guide-counter {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 40px;
+  text-align: center;
+}
+
 .main-header {
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
